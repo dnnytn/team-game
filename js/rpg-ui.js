@@ -23,7 +23,9 @@ var RPGBattleUI = (function () {
     RPGEngine.init(ships, arenaCanvas.width, arenaCanvas.height);
 
     // Show battle screen
-    showScreen('battle');
+    document.getElementById('lobby').classList.remove('active');
+    document.getElementById('battle').classList.add('active');
+    document.getElementById('victory').classList.remove('active');
 
     // Start BGM
     GameAudio.startBGM();
@@ -89,7 +91,11 @@ var RPGBattleUI = (function () {
     });
 
     GameAudio.playVictoryFanfare();
-    showScreen('victory');
+
+    // Show victory screen
+    document.getElementById('lobby').classList.remove('active');
+    document.getElementById('battle').classList.remove('active');
+    document.getElementById('victory').classList.add('active');
   }
 
   function cleanup() {
