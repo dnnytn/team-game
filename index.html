@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ship Battle Arena</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Lobby Screen -->
+  <div id="lobby" class="screen active">
+    <h1 class="title">SHIP BATTLE ARENA</h1>
+    <p class="subtitle">Teams loaded: <span id="ship-count">0</span></p>
+    <div id="ship-cards"></div>
+    <div class="lobby-controls">
+      <button id="btn-start" class="btn-primary" disabled>START BATTLE</button>
+    </div>
+  </div>
+
+  <!-- Battle Screen -->
+  <div id="battle" class="screen">
+    <canvas id="arena" width="1024" height="768"></canvas>
+    <div id="hud">
+      <div id="hud-ships"></div>
+      <div id="battle-controls">
+        <label for="speed-slider">SPEED:</label>
+        <input type="range" id="speed-slider" min="1" max="4" value="2" step="1">
+        <span id="speed-label">1x</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Victory Screen -->
+  <div id="victory" class="screen">
+    <h1 class="title">BATTLE COMPLETE</h1>
+    <div id="standings"></div>
+    <button id="btn-replay" class="btn-primary">REPLAY</button>
+  </div>
+
+  <!-- Scripts: load order matters -->
+  <script src="js/registry-api.js"></script>
+  <script src="js/validation.js"></script>
+  <script src="ships/registry.js"></script>
+  <script src="js/abilities.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>

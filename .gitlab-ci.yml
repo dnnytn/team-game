@@ -1,0 +1,13 @@
+stages:
+  - validate
+
+validate-ships:
+  stage: validate
+  script:
+    - echo "Validating all registered ship modules..."
+    - node tests/validate-ships.js
+  rules:
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
