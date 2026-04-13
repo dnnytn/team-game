@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "canvas": "^3.2.3",
+    "jsdom": "^29.0.2",
+    "puppeteer-core": "^24.40.0"
+  },
+  "devDependencies": {
+    "puppeteer": "^24.40.0"
+  }
+}

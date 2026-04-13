@@ -304,8 +304,16 @@ var RPGRenderer = (function () {
       var sprites = spriteCache[ship.config.team];
       if (sprites && sprites.length > 0) {
         var step = Math.round((ship.heading / (Math.PI * 2)) * 36) % 36;
+        if (isNaN(step)) step = 0;
+        step = Math.max(0, Math.min(step, sprites.length - 1));
         var spriteCanvas = sprites[step];
-        ctx.drawImage(spriteCanvas, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+        if (spriteCanvas) {
+          try {
+            ctx.drawImage(spriteCanvas, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+          } catch (e) {
+            console.warn('[RPG] Failed to draw sprite for ' + ship.config.name + ': ' + e.message);
+          }
+        }
       }
 
       ctx.restore();
