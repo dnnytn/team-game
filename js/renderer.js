@@ -388,6 +388,7 @@ var Renderer = (function () {
     init: init,
     cacheShipSprites: cacheShipSprites,
     render: render,
-    renderSprite: renderSprite
+    renderSprite: renderSprite,
+    spriteCache: spriteCache
   };
 })();
