@@ -58,6 +58,43 @@ var ShipAI = (function () {
     var moveSpeed = 2 + ship.config.speed * 0.08;
     var dx = 0, dy = 0;
 
+    // Position history tracking for loop detection
+    if (state.tick % 10 === 0) {
+      ship.posHistory = ship.posHistory || [];
+      ship.posHistory.push({ x: ship.x, y: ship.y });
+      if (ship.posHistory.length > 10) {
+        ship.posHistory.shift();
+      }
+    }
+
+    // Loop detection: check if ship is orbiting (staying in small area for 100+ ticks)
+    if (ship.posHistory && ship.posHistory.length >= 10) {
+      var cx = 0, cy = 0;
+      ship.posHistory.forEach(function (p) { cx += p.x; cy += p.y; });
+      cx /= ship.posHistory.length;
+      cy /= ship.posHistory.length;
+      var maxDist = 0;
+      ship.posHistory.forEach(function (p) {
+        var d = Math.hypot(p.x - cx, p.y - cy);
+        if (d > maxDist) maxDist = d;
+      });
+      ship.loopDetected = maxDist < 60;
+    }
+
+    // Behavioral mode system (aggressive, defensive, flanking)
+    if (!ship.mode) {
+      var modes = ['aggressive', 'defensive', 'flanking'];
+      ship.mode = modes[Math.floor(Math.random() * modes.length)];
+      ship.modeTicks = 60 + Math.random() * 120 | 0;
+    }
+    ship.modeTicks--;
+    if (ship.modeTicks <= 0) {
+      var modes = ['aggressive', 'defensive', 'flanking'];
+      var otherModes = modes.filter(function(m) { return m !== ship.mode; });
+      ship.mode = otherModes[Math.floor(Math.random() * otherModes.length)];
+      ship.modeTicks = 60 + Math.random() * 120 | 0;
+    }
+
     // Steer toward target at engagement range
     if (ship.target && ship.target.alive) {
       var tx = ship.target.x - ship.x;
@@ -66,16 +103,68 @@ var ShipAI = (function () {
       var optimalRange = 150 + (ship.config.speed - ship.config.weaponPower) * 1.5;
       optimalRange = Math.max(100, Math.min(350, optimalRange));
 
-      if (dist > optimalRange + 30) {
+      // Mode-based range adjustment
+      var modeRangeOffset = 0;
+      if (ship.mode === 'aggressive') modeRangeOffset = -50;  // Fight closer
+      if (ship.mode === 'defensive')  modeRangeOffset = +60;  // Fight farther
+      var effectiveOptimalRange = optimalRange + modeRangeOffset;
+
+      // If in loop, break out with aggressive charge
+      if (ship.loopDetected && dist > 0) {
+        ship.strafeDir = ship.strafeDir ? ship.strafeDir * -1 : (Math.random() < 0.5 ? 1 : -1);
+        ship.aggressiveTicks = 30;
+        ship.posHistory = [];
+        ship.loopDetected = false;
+        dx += tx / dist * 1.5;
+        dy += ty / dist * 1.5;
+      } else if (ship.aggressiveTicks && ship.aggressiveTicks > 0) {
+        // Continue aggressive charge
+        ship.aggressiveTicks--;
+        dx += tx / dist * 1.5;
+        dy += ty / dist * 1.5;
+      } else if (dist > effectiveOptimalRange + 30) {
         dx += tx / dist;
         dy += ty / dist;
-      } else if (dist < optimalRange - 30) {
-        dx -= tx / dist;
-        dy -= ty / dist;
+      } else if (dist < effectiveOptimalRange - 30) {
+        if (ship.mode === 'defensive') {
+          // Defensive: retreat harder
+          dx -= tx / dist * 1.5;
+          dy -= ty / dist * 1.5;
+        } else {
+          dx -= tx / dist;
+          dy -= ty / dist;
+        }
       } else {
-        // Strafe around target
-        dx += -ty / dist * 0.5;
-        dy += tx / dist * 0.5;
+        // In engagement zone
+        if (ship.mode === 'flanking') {
+          // Flanking: try to get to the side/behind the target
+          var targetHeadingX = Math.cos(ship.target.heading);
+          var targetHeadingY = Math.sin(ship.target.heading);
+          // Ideal flank position: perpendicular to target's heading
+          var flankX = ship.target.x - targetHeadingX * effectiveOptimalRange;
+          var flankY = ship.target.y - targetHeadingY * effectiveOptimalRange;
+          var flankDx = flankX - ship.x;
+          var flankDy = flankY - ship.y;
+          var flankDist = Math.hypot(flankDx, flankDy);
+          if (flankDist > 0) {
+            dx += flankDx / flankDist * 0.8;
+            dy += flankDy / flankDist * 0.8;
+          }
+        } else {
+          // Strafe around target (aggressive and defensive)
+          ship.strafeDir = ship.strafeDir || (Math.random() < 0.5 ? 1 : -1);
+          var strafeWeight = ship.mode === 'aggressive' ? 0.8 : 0.3;
+          // Add small radial oscillation so ships don't sit at constant distance
+          var radialOscillation = Math.sin(state.tick * 0.1 + (ship.jitterPhase || 0)) * 0.3;
+          dx += tx / dist * radialOscillation;
+          dx += -ty / dist * strafeWeight * ship.strafeDir;
+          dy += tx / dist * strafeWeight * ship.strafeDir;
+
+          // Aggressive mode: occasional random charges
+          if (ship.mode === 'aggressive' && state.tick % 40 === 0 && Math.random() < 0.4) {
+            ship.aggressiveTicks = 15;
+          }
+        }
       }
     }
 
@@ -99,8 +188,8 @@ var ShipAI = (function () {
     if (ship.y < margin) dy += (margin - ship.y) / margin;
     if (ship.y > state.arenaHeight - margin) dy -= (ship.y - (state.arenaHeight - margin)) / margin;
 
-    // Evasion jitter (scaled by speed)
-    var jitterStrength = ship.config.speed * 0.005;
+    // Evasion jitter (scaled by speed, 4x stronger)
+    var jitterStrength = ship.config.speed * 0.02;
     ship.jitterPhase = (ship.jitterPhase || 0) + 0.15;
     dx += Math.sin(ship.jitterPhase * 2.7 + ship.x * 0.01) * jitterStrength;
     dy += Math.cos(ship.jitterPhase * 3.1 + ship.y * 0.01) * jitterStrength;
@@ -189,24 +278,32 @@ var ShipAI = (function () {
     var abilityDef = Abilities.definitions[ship.config.specialAbility];
     if (!abilityDef) return;
 
+    // Track how long ability has been available without firing
+    ship.abilityAvailableTicks = (ship.abilityAvailableTicks || 0) + 1;
+
     // Check trigger condition
-    if (!abilityDef.shouldUse(ship, state)) {
+    var shouldUse = abilityDef.shouldUse(ship, state);
+    var forceUse = ship.abilityAvailableTicks >= 100; // Use it or lose it after 10 seconds
+
+    if (!shouldUse && !forceUse) {
       ship.abilityTriggerDelay = 0;
       return;
     }
 
     // Delay before activation (feels more natural)
     ship.abilityTriggerDelay = (ship.abilityTriggerDelay || 0) + 1;
-    if (ship.abilityTriggerDelay < 10) return;
+    if (ship.abilityTriggerDelay < 3) return;
 
     // Activate!
     ship.abilityActive = true;
     ship.abilityTriggerDelay = 0;
+    ship.abilityAvailableTicks = 0;
     ship.abilityCooldown = Abilities.getCooldown(ship.config.ability);
 
     var effect = abilityDef.activate(ship, state);
     if (effect) {
       state.abilityEffects.push(effect);
+      BattleEngine.spawnVisualEffect(effect, ship);
     }
   }
 

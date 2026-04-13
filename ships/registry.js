@@ -9,4 +9,8 @@
 var SHIP_MANIFEST = [
   "example-tank.js",
   "example-glass-cannon.js",
+  "example-emp.js",
+  "example-teleport.js",
+  "example-overdrive.js",
+  "example-mine-layer.js",
 ];

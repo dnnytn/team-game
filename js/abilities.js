@@ -2,8 +2,8 @@
  * Abilities - Special ability definitions and execution logic.
  */
 var Abilities = (function () {
-  var BASE_COOLDOWN = 150; // ticks (15 seconds at 10 ticks/sec)
-  var MIN_COOLDOWN = 80;   // ticks (8 seconds minimum)
+  var BASE_COOLDOWN = 100; // ticks (10 seconds at 10 ticks/sec)
+  var MIN_COOLDOWN = 50;   // ticks (5 seconds minimum)
 
   function getCooldown(abilityStat) {
     return Math.max(MIN_COOLDOWN, BASE_COOLDOWN - abilityStat * 1.5) | 0;
@@ -29,7 +29,7 @@ var Abilities = (function () {
         }
       },
       shouldUse: function (ship, state) {
-        return ship.currentShields / ship.maxShields < 0.4;
+        return ship.currentShields / ship.maxShields < 0.75;
       }
     },
 
@@ -54,9 +54,9 @@ var Abilities = (function () {
         var aliveShips = state.ships.filter(function (s) { return s.alive && s !== ship; });
         aliveShips.forEach(function (s) {
           var dist = Math.hypot(s.x - ship.x, s.y - ship.y);
-          if (dist < 200) nearbyCount++;
+          if (dist < 280) nearbyCount++;
         });
-        return nearbyCount >= 2 || ship.currentShields / ship.maxShields < 0.3;
+        return nearbyCount >= 1 || ship.currentShields / ship.maxShields < 0.6;
       }
     },
 
@@ -84,9 +84,11 @@ var Abilities = (function () {
         var nearbyCount = 0;
         state.ships.forEach(function (s) {
           if (s === ship || !s.alive) return;
-          if (Math.hypot(s.x - ship.x, s.y - ship.y) < radius) nearbyCount++;
+          var dist = Math.hypot(s.x - ship.x, s.y - ship.y);
+          if (dist < radius) nearbyCount++;
         });
-        return nearbyCount >= 2;
+        // Trigger with 1+ enemies in radius (works with 2-ship battles)
+        return nearbyCount >= 1;
       }
     },
 
@@ -122,7 +124,7 @@ var Abilities = (function () {
         // Teleport is instant
       },
       shouldUse: function (ship, state) {
-        return ship.currentShields / ship.maxShields < 0.2;
+        return ship.currentShields / ship.maxShields < 0.5;
       }
     },
 
@@ -144,7 +146,9 @@ var Abilities = (function () {
       },
       shouldUse: function (ship, state) {
         if (!ship.target || !ship.target.alive) return false;
-        return ship.target.currentShields / ship.target.maxShields < 0.5;
+        var targetLow = ship.target.currentShields / ship.target.maxShields < 0.75;
+        var selfHealthy = ship.currentShields / ship.maxShields > 0.5;
+        return targetLow || selfHealthy;
       }
     },
 
@@ -176,15 +180,16 @@ var Abilities = (function () {
         // Mines are managed by engine
       },
       shouldUse: function (ship, state) {
-        // Drop mine when enemy is approaching from behind or when retreating
+        // Drop mine when enemy is approaching from behind or when retreating, or when very close
         if (!ship.target || !ship.target.alive) return false;
         var dx = ship.target.x - ship.x;
         var dy = ship.target.y - ship.y;
+        var dist = Math.hypot(dx, dy);
         var angleToTarget = Math.atan2(dy, dx);
         var angleDiff = Math.abs(angleToTarget - ship.heading);
         if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
-        // Enemy is roughly behind us
-        return angleDiff > Math.PI * 0.6;
+        // Enemy is roughly behind us OR enemy is close
+        return angleDiff > Math.PI * 0.4 || dist < 120;
       }
     }
   };
