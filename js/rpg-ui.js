@@ -93,8 +93,12 @@ var RPGBattleUI = (function () {
   }
 
   function cleanup() {
-    RPGRenderer.stopLoop();
-    GameAudio.stopBGM();
+    if (RPGRenderer && RPGRenderer.stopLoop) {
+      RPGRenderer.stopLoop();
+    }
+    if (GameAudio && GameAudio.stopBGM) {
+      GameAudio.stopBGM();
+    }
   }
 
   return {

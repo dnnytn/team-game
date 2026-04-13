@@ -79,14 +79,20 @@ var RPGEngine = (function () {
   }
 
   function start(onBattleEnd) {
+    if (!rpgState) {
+      console.error('RPGEngine.start() called but rpgState not initialized. Call init() first.');
+      return;
+    }
     onBattleEndCb = onBattleEnd;
     rpgState.phase = 'idle';
-    if (rpgState.activeShip) {
+    if (rpgState.activeShip && rpgState.activeShip.alive) {
       runTurn(function () {
         // Turn complete, advance queue for next
         advanceTurnQueue();
         checkVictory();
       });
+    } else {
+      console.error('No active ship to start battle', rpgState.activeShip);
     }
   }
 
