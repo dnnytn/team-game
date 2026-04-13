@@ -5,7 +5,7 @@ var Renderer = (function () {
   var canvas, ctx;
   var stars = [];
   var spriteCache = {}; // team -> array of rotated canvases
-  var SPRITE_SCALE = 3; // 16px * 3 = 48px on screen
+  var SPRITE_SCALE = 4; // 16px * 4 = 64px on screen
   var ROTATION_STEPS = 36; // Pre-cache 36 rotations (every 10 degrees)
 
   function init(canvasEl) {
@@ -75,6 +75,7 @@ var Renderer = (function () {
 
     drawStarfield(tick);
     drawMines(state);
+    drawVisualEffects(state, tick);
     drawProjectiles(state);
     drawAbilityEffects(state);
     drawShips(state);
@@ -152,7 +153,7 @@ var Renderer = (function () {
     state.ships.forEach(function (ship) {
       if (!ship.alive || ship.cloaked) return;
       ctx.fillStyle = ship.config.color;
-      ctx.fillText(ship.config.name, ship.x, ship.y - 30);
+      ctx.fillText(ship.config.name, ship.x, ship.y - 38);
     });
   }
 
@@ -197,6 +198,98 @@ var Renderer = (function () {
         ctx.strokeStyle = 'rgba(255, 0, 0, 0.1)';
         ctx.lineWidth = 1;
         ctx.stroke();
+      }
+    });
+  }
+
+  function drawVisualEffects(state, tick) {
+    if (!state.visualEffects) return;
+    state.visualEffects.forEach(function (ve) {
+      var progress = 1 - (ve.lifetime / ve.maxLifetime);
+      var alpha = ve.alpha !== undefined ? ve.alpha * (1 - progress) : (1 - progress);
+
+      switch (ve.type) {
+
+        case 'expanding_ring':
+          ctx.beginPath();
+          ctx.arc(ve.x, ve.y, Math.max(1, ve.radius), 0, Math.PI * 2);
+          ctx.strokeStyle = ve.color;
+          ctx.lineWidth = ve.lineWidth || 2;
+          ctx.globalAlpha = alpha;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          break;
+
+        case 'fading_disc':
+          ctx.beginPath();
+          ctx.arc(ve.x, ve.y, ve.radius, 0, Math.PI * 2);
+          ctx.fillStyle = ve.color;
+          ctx.globalAlpha = ve.alpha * (1 - progress);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          break;
+
+        case 'bolt':
+          var boltAlpha = alpha * ve.alpha;
+          ctx.globalAlpha = boltAlpha;
+          ctx.strokeStyle = ve.color;
+          ctx.lineWidth = ve.lineWidth || 1.5;
+          ctx.beginPath();
+          ctx.moveTo(ve.x, ve.y);
+          var seg1x = ve.x + Math.cos(ve.angle + 0.3) * ve.length * 0.4;
+          var seg1y = ve.y + Math.sin(ve.angle + 0.3) * ve.length * 0.4;
+          var seg2x = ve.x + Math.cos(ve.angle - 0.2) * ve.length * 0.7;
+          var seg2y = ve.y + Math.sin(ve.angle - 0.2) * ve.length * 0.7;
+          var endX = ve.x + Math.cos(ve.angle) * ve.length;
+          var endY = ve.y + Math.sin(ve.angle) * ve.length;
+          ctx.lineTo(seg1x, seg1y);
+          ctx.lineTo(seg2x, seg2y);
+          ctx.lineTo(endX, endY);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          break;
+
+        case 'swirl_line':
+          var swirlAngle = ve.angleOffset + progress * Math.PI * 2;
+          var swirlAlpha = (1 - progress) * 0.8;
+          ctx.globalAlpha = swirlAlpha;
+          ctx.strokeStyle = ve.color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(ve.x, ve.y);
+          ctx.lineTo(
+            ve.x + Math.cos(swirlAngle) * ve.radius * progress,
+            ve.y + Math.sin(swirlAngle) * ve.radius * progress
+          );
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          break;
+
+        case 'ship_glow':
+          if (!ve.shipRef || !ve.shipRef.alive) break;
+          var glowAlpha = (1 - progress) * ve.alpha;
+          ctx.beginPath();
+          ctx.arc(ve.shipRef.x, ve.shipRef.y, ve.glowRadius, 0, Math.PI * 2);
+          ctx.strokeStyle = ve.color;
+          ctx.lineWidth = 4;
+          ctx.globalAlpha = glowAlpha;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          break;
+
+        case 'overdrive_aura':
+          if (!ve.shipRef || !ve.shipRef.alive) break;
+          var pulseAlpha = 0.3 + Math.sin(tick * (ve.pulseSpeed || 0.4)) * 0.2;
+          ctx.shadowColor = ve.color;
+          ctx.shadowBlur = 20 + Math.sin(tick * 0.3) * 8;
+          ctx.beginPath();
+          ctx.arc(ve.shipRef.x, ve.shipRef.y, 28, 0, Math.PI * 2);
+          ctx.fillStyle = ve.color;
+          ctx.globalAlpha = pulseAlpha * 0.4;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.shadowBlur = 0;
+          break;
       }
     });
   }
