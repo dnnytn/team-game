@@ -380,3 +380,53 @@ body {
 .standing-row:nth-child(4) { animation-delay: 0.8s; }
 .standing-row:nth-child(5) { animation-delay: 1.0s; }
 .standing-row:nth-child(6) { animation-delay: 1.2s; }
+
+/* === RPG Battle Mode Toggle === */
+
+.lobby-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  border: 2px solid var(--border);
+  background: var(--bg-panel);
+  cursor: pointer;
+  transition: border-color 0.2s;
+  margin-bottom: 8px;
+}
+
+.lobby-mode-toggle:hover {
+  border-color: var(--warning);
+}
+
+.lobby-mode-toggle input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--accent-dim);
+  background: var(--bg-dark);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.lobby-mode-toggle input[type="checkbox"]:checked {
+  background: var(--warning);
+  border-color: var(--warning);
+}
+
+.lobby-mode-toggle .toggle-label {
+  font-size: 11px;
+  color: var(--text);
+  user-select: none;
+}
+
+.lobby-mode-toggle .toggle-badge {
+  font-size: 8px;
+  color: var(--warning);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border: 1px solid var(--warning);
+}

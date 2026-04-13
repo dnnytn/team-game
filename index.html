@@ -13,6 +13,11 @@
     <p class="subtitle">Teams loaded: <span id="ship-count">0</span></p>
     <div id="ship-cards"></div>
     <div class="lobby-controls">
+      <label class="lobby-mode-toggle">
+        <input type="checkbox" id="rpg-mode">
+        <span class="toggle-label">RPG BATTLE MODE</span>
+        <span class="toggle-badge">TURN-BASED</span>
+      </label>
       <button id="btn-start" class="btn-primary" disabled>START BATTLE</button>
     </div>
   </div>
@@ -46,6 +51,9 @@
   <script src="js/engine.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/renderer.js"></script>
+  <script src="js/rpg-engine.js"></script>
+  <script src="js/rpg-renderer.js"></script>
+  <script src="js/rpg-ui.js"></script>
   <script src="js/ui.js"></script>
 </body>
 </html>

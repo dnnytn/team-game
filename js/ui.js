@@ -303,12 +303,19 @@
   // === Event Listeners ===
 
   btnStart.addEventListener('click', function () {
-    startBattle();
+    var rpgToggle = document.getElementById('rpg-mode');
+    if (rpgToggle && rpgToggle.checked) {
+      RPGBattleUI.init(arenaCanvas);
+      RPGBattleUI.start();
+    } else {
+      startBattle();
+    }
   });
 
   btnReplay.addEventListener('click', function () {
     // Reset everything
     cancelAnimationFrame(animFrameId);
+    RPGBattleUI.cleanup();
     BattleEngine.stop();
     GameAudio.stopBGM();
     showScreen('lobby');
