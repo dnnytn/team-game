@@ -484,17 +484,361 @@ th {
 
     <section id="s1" class="chapter">
       <h2><span class="num">1.</span> Why MCP?</h2>
-      <p class="todo-note">Content lands in Chapter 2 of the build.</p>
+
+      <p>
+        Every AI assistant worth using needs to reach beyond the chat box:
+        read files, query databases, restart pods, open tickets. Without a
+        standard, every assistant builds its own adapter for every tool.
+        <strong>N assistants × M tools = N&times;M bespoke integrations</strong>,
+        every one of which needs to be written, audited, updated, and
+        monitored.
+      </p>
+
+      <p>
+        The <strong>Model Context Protocol</strong> collapses that into
+        <strong>N + M</strong>. Each AI app learns MCP once. Each tool
+        provider ships one MCP server. They speak a common protocol and pair
+        freely. Anthropic published MCP in November 2024; the latest stable
+        revision is <code>2025-11-25</code>.
+      </p>
+
+      <h3>The analogy: LSP for AI tools</h3>
+      <p>
+        If you&rsquo;ve worked with editors and language tooling, you already
+        know the shape of this problem. Before the Language Server Protocol,
+        every editor wrote bespoke Go support, Python support, Rust support.
+        After LSP, <code>gopls</code> speaks LSP, and every editor that also
+        speaks LSP inherits Go intelligence for free. MCP is the same move,
+        one layer up: instead of editors&nbsp;&harr;&nbsp;languages, it&rsquo;s
+        AI hosts&nbsp;&harr;&nbsp;tools and data.
+      </p>
+
+      <div class="callout callout-clusterops">
+        <div class="callout-title">In ClusterOps</div>
+        <p>
+          The bank has three places where SREs want to touch Kubernetes with an
+          AI: the internal chat UI, the on-call engineer&rsquo;s VS Code, and
+          a command-line agent on jump hosts. Without MCP, the platform team
+          would ship and maintain three k8s adapters &mdash; three places to
+          patch when the API surface changes, three audit paths for Security.
+          With MCP, they ship <strong>one</strong> ClusterOps server. All
+          three AI surfaces are MCP clients and reach it the same way.
+        </p>
+      </div>
+
+      <div class="callout callout-wild">
+        <div class="callout-title">In the wild</div>
+        <p>
+          GitHub&rsquo;s official MCP server is the poster child for this
+          collapse. Before it, Claude Desktop, Cursor, Zed, and Windsurf
+          each had their own GitHub integrations. Now they all point at the
+          same server and get identical behaviour. That&rsquo;s the whole
+          pitch in one bullet.
+        </p>
+      </div>
+
+      <form class="quiz" aria-label="Section 1 quiz">
+        <div class="quiz-head">Check yourself</div>
+        <p class="quiz-title">Two quick questions on &sect;1.</p>
+
+        <fieldset class="quiz-q" data-correct="b"
+          data-explain="MCP collapses the integration surface from N&times;M (every client needs a custom adapter for every tool) to N+M (each client learns MCP once, each tool ships one MCP server).">
+          <legend>1. What does the &ldquo;N&times;M&rdquo; problem refer to?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s1-1" value="a"> Number of users times number of models the host supports.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s1-1" value="b"> N AI clients paired with M data sources or tools &mdash; every pair needs a bespoke integration without a standard.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s1-1" value="c"> Model context window size times the number of messages in a session.</label>
+        </fieldset>
+
+        <fieldset class="quiz-q" data-correct="b"
+          data-explain="LSP standardised the interface between editors and language tooling so one language server works with any editor. MCP does the same one layer up: one tool server works with any AI host.">
+          <legend>2. Which existing protocol is MCP most directly modelled on?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s1-2" value="a"> REST &mdash; because tools are resources addressed by URL.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s1-2" value="b"> LSP (Language Server Protocol) &mdash; because it standardises a many-to-many client/server ecosystem.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s1-2" value="c"> gRPC &mdash; because it is the fastest RPC format available.</label>
+        </fieldset>
+
+        <div class="quiz-actions">
+          <button type="button" class="btn primary" data-quiz-action="check">Check answers</button>
+          <button type="button" class="btn" data-quiz-action="reset">Reset</button>
+          <span class="quiz-summary" aria-live="polite"></span>
+        </div>
+      </form>
     </section>
 
     <section id="s2" class="chapter">
       <h2><span class="num">2.</span> The three roles: Host, Client, Server</h2>
-      <p class="todo-note">Content lands in Chapter 2 of the build.</p>
+
+      <p>
+        Every MCP deployment has exactly three roles. They sound interchangeable
+        on first read, but the boundaries matter &mdash; especially for credentials.
+      </p>
+
+      <h3>Host</h3>
+      <p>
+        The application the user interacts with. Claude Desktop, VS Code with
+        Copilot, an internal chat UI, an agent in a terminal. The host owns the
+        user-facing surface, the consent prompts, the security policy, and the
+        LLM itself. It decides which servers are allowed and hands user
+        approval gates to each tool call.
+      </p>
+
+      <h3>Client</h3>
+      <p>
+        The host spins up one MCP <strong>client</strong> per server it wants
+        to use. A client maintains a <strong>1:1 connection</strong> with
+        exactly one server and speaks JSON-RPC on that connection. A host
+        with four servers has four clients running inside it. Clients are
+        the protocol plumbing &mdash; the host delegates &ldquo;call this tool&rdquo;
+        or &ldquo;read this resource&rdquo; to the right client.
+      </p>
+
+      <h3>Server</h3>
+      <p>
+        The process that actually exposes tools, resources, and prompts. It
+        holds the backend credentials &mdash; the kubeconfig, the database
+        password, the Jira API token &mdash; and translates MCP requests into
+        real work. Servers can be local (launched as a subprocess over stdio)
+        or remote (reached over HTTP).
+      </p>
+
+      <figure class="diagram" aria-label="Host, Client, Server topology with ClusterOps">
+        <svg viewBox="0 0 720 340" role="img"
+             xmlns="http://www.w3.org/2000/svg"
+             font-family="ui-sans-serif, system-ui, sans-serif"
+             font-size="13" fill="#e6e6e6">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4b2"/>
+            </marker>
+          </defs>
+
+          <!-- Host box -->
+          <rect x="20" y="30" width="300" height="290" rx="10"
+                fill="#1f2430" stroke="#3a4150"/>
+          <text x="170" y="55" text-anchor="middle" font-weight="600">Host</text>
+          <text x="170" y="74" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            SRE&rsquo;s internal chat UI + LLM
+          </text>
+
+          <!-- Client A -->
+          <rect x="50" y="100" width="240" height="75" rx="6"
+                fill="#171b22" stroke="#5aa9ff"/>
+          <text x="170" y="130" text-anchor="middle">MCP Client</text>
+          <text x="170" y="152" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            paired with ClusterOps
+          </text>
+
+          <!-- Client B -->
+          <rect x="50" y="210" width="240" height="75" rx="6"
+                fill="#171b22" stroke="#5aa9ff"/>
+          <text x="170" y="240" text-anchor="middle">MCP Client</text>
+          <text x="170" y="262" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            paired with Jira
+          </text>
+
+          <!-- JSON-RPC arrows -->
+          <path d="M 290 138 L 440 138" stroke="#9aa4b2" stroke-width="1.5"
+                fill="none" marker-end="url(#arrow)"/>
+          <text x="365" y="128" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            JSON-RPC 2.0
+          </text>
+
+          <path d="M 290 248 L 440 248" stroke="#9aa4b2" stroke-width="1.5"
+                fill="none" marker-end="url(#arrow)"/>
+          <text x="365" y="238" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            JSON-RPC 2.0
+          </text>
+
+          <!-- Server A: ClusterOps -->
+          <rect x="440" y="100" width="260" height="75" rx="6"
+                fill="#171b22" stroke="#3fb950"/>
+          <text x="570" y="125" text-anchor="middle" font-weight="600">ClusterOps Server</text>
+          <text x="570" y="146" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            holds kubeconfig
+          </text>
+          <text x="570" y="164" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            &rarr; kube-apiserver
+          </text>
+
+          <!-- Server B: Jira -->
+          <rect x="440" y="210" width="260" height="75" rx="6"
+                fill="#171b22" stroke="#3fb950"/>
+          <text x="570" y="235" text-anchor="middle" font-weight="600">Jira Server</text>
+          <text x="570" y="256" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            holds API token
+          </text>
+          <text x="570" y="274" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            &rarr; Jira REST API
+          </text>
+        </svg>
+        <figcaption>
+          One host, two clients, two servers. Credentials live only on the
+          right-hand (server) side &mdash; never on the host or client.
+        </figcaption>
+      </figure>
+
+      <div class="callout callout-clusterops">
+        <div class="callout-title">In ClusterOps</div>
+        <p>
+          The <strong>Host</strong> is the SRE&rsquo;s internal chat UI (plus
+          the LLM it embeds). The <strong>Client</strong> is a thin MCP
+          adapter inside the host, dedicated to the ClusterOps connection.
+          The <strong>Server</strong> is a container running in a dedicated
+          namespace inside the cluster, mounted with a ServiceAccount that
+          grants just enough RBAC to list pods, fetch logs, and restart
+          deployments. The kubeconfig exists only on that pod. The host never
+          sees it; the client never sees it; a compromise of the SRE&rsquo;s
+          laptop cannot exfiltrate it.
+        </p>
+      </div>
+
+      <form class="quiz" aria-label="Section 2 quiz">
+        <div class="quiz-head">Check yourself</div>
+        <p class="quiz-title">Two questions on &sect;2.</p>
+
+        <fieldset class="quiz-q" data-correct="c"
+          data-explain="The server is the only component that actually talks to kube-apiserver, so the kubeconfig lives only there. Host and client only see tool names, schemas, and results &mdash; never credentials.">
+          <legend>1. Which component holds the kubeconfig in the ClusterOps setup?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s2-1" value="a"> The host &mdash; it needs it to render the tool list.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s2-1" value="b"> The client &mdash; it forwards calls to the API server.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s2-1" value="c"> The server &mdash; it is the only component that talks to kube-apiserver.</label>
+        </fieldset>
+
+        <fieldset class="quiz-q" data-correct="b"
+          data-explain="Each client maintains a 1:1 link with exactly one server. A host that wants to use three servers spawns three clients inside itself.">
+          <legend>2. A host is connected to three servers at once. How many MCP clients is it running?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s2-2" value="a"> One &mdash; the host multiplexes all server traffic through a single client.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s2-2" value="b"> Three &mdash; one client per server, each on its own connection.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s2-2" value="c"> Zero &mdash; the host talks to servers directly; clients are a server-side concept.</label>
+        </fieldset>
+
+        <div class="quiz-actions">
+          <button type="button" class="btn primary" data-quiz-action="check">Check answers</button>
+          <button type="button" class="btn" data-quiz-action="reset">Reset</button>
+          <span class="quiz-summary" aria-live="polite"></span>
+        </div>
+      </form>
     </section>
 
     <section id="s3" class="chapter">
       <h2><span class="num">3.</span> Protocol primitives</h2>
-      <p class="todo-note">Content lands in Chapter 2 of the build.</p>
+
+      <p>
+        A server exposes three primary primitives. Knowing which is which
+        determines who decides when they fire and what happens when they
+        fail.
+      </p>
+
+      <h3>Tools &mdash; model-initiated, side-effectful</h3>
+      <p>
+        A <strong>tool</strong> is a named, schema-validated operation the
+        LLM can choose to invoke. The host lists tools to the model via
+        <code>tools/list</code>; the model replies &ldquo;call
+        <code>restart_deployment</code> with these arguments&rdquo;; the host
+        runs <code>tools/call</code>; the server does the work and returns a
+        result. Tools can have side effects, so the host typically asks the
+        user to approve each call.
+      </p>
+
+      <pre><code>{
+  "name": "restart_deployment",
+  "description": "Perform a rolling restart of a Deployment by bumping its pod template annotation.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "deployment": { "type": "string", "description": "Deployment name" },
+      "namespace":  { "type": "string", "description": "Namespace" }
+    },
+    "required": ["deployment", "namespace"]
+  }
+}</code></pre>
+
+      <h3>Resources &mdash; user-selected, read-only</h3>
+      <p>
+        A <strong>resource</strong> is a piece of data addressable by URI.
+        The host or user picks it (&ldquo;attach this file&rdquo;,
+        &ldquo;include this runbook&rdquo;) and the model reads it. No side
+        effects, no input schema, just content. A server that wants to be a
+        good citizen for reading files, docs, or read-only DB views exposes
+        them as resources rather than tools.
+      </p>
+
+      <pre><code>runbooks://incidents/db-outage.md
+manifests://prod/deployment/payments.yaml</code></pre>
+
+      <h3>Prompts &mdash; user-invoked templates</h3>
+      <p>
+        A <strong>prompt</strong> is a named, parameterised message template
+        that the user triggers, typically through a slash menu in the host.
+        The server returns structured messages that the host injects into
+        the conversation. Prompts let server authors ship reusable
+        workflows without the model having to discover them.
+      </p>
+
+      <h3>Everything else</h3>
+      <p>
+        Three more primitives exist and you&rsquo;ll meet them in advanced
+        deployments; they aren&rsquo;t the core of most servers:
+      </p>
+      <ul>
+        <li><strong>Sampling</strong> &mdash; server asks the host to run an
+          LLM completion on its behalf (so the server doesn&rsquo;t carry its
+          own model).</li>
+        <li><strong>Roots</strong> &mdash; host declares which filesystem or
+          workspace boundaries the server may operate within.</li>
+        <li><strong>Elicitation</strong> &mdash; server pauses a tool call to
+          ask the user a structured follow-up question.</li>
+      </ul>
+
+      <div class="callout callout-clusterops">
+        <div class="callout-title">In ClusterOps</div>
+        <ul>
+          <li><strong>Tools:</strong> <code>list_pods</code>,
+            <code>get_logs</code>, <code>restart_deployment</code>,
+            <code>scale_deployment</code>. All four are schema-validated and
+            the host gates them behind an &ldquo;approve?&rdquo; prompt for
+            anything write-shaped.</li>
+          <li><strong>Resources:</strong> the incident runbook library
+            (<code>runbooks://&hellip;</code>) and frozen copies of prod
+            manifests (<code>manifests://&hellip;</code>). An SRE can drop a
+            runbook into the chat to anchor the LLM&rsquo;s reasoning before
+            any tool fires.</li>
+          <li><strong>Prompts:</strong> <code>prompts/triage</code> &mdash;
+            takes <code>severity</code>, <code>service</code>, and
+            <code>owner</code> and returns a pre-filled incident triage
+            message, so every SRE starts from the same checklist.</li>
+          <li>ClusterOps does <em>not</em> use sampling or elicitation.
+            Roots are irrelevant (no filesystem access).</li>
+        </ul>
+      </div>
+
+      <form class="quiz" aria-label="Section 3 quiz">
+        <div class="quiz-head">Check yourself</div>
+        <p class="quiz-title">Two questions on &sect;3.</p>
+
+        <fieldset class="quiz-q" data-correct="c"
+          data-explain="Prompts are user-invoked templates &mdash; the SRE triggers them from a slash menu and fills in parameters. Tools are model-initiated; resources are passive read-only data.">
+          <legend>1. An SRE types <code>/triage</code>, fills in severity and service, and the host injects a pre-written triage message. Which primitive is this?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s3-1" value="a"> Tool &mdash; it has named parameters.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s3-1" value="b"> Resource &mdash; it returns text content.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s3-1" value="c"> Prompt &mdash; it is a user-invoked parameterised template.</label>
+        </fieldset>
+
+        <fieldset class="quiz-q" data-correct="a"
+          data-explain="The model decided to act, the call has a JSON-Schema-validated input, and it has side effects on the cluster. That is the textbook definition of a tool. Resources are read-only; elicitation is the server asking the user a question.">
+          <legend>2. After reading logs, the model says &ldquo;I should restart the payments deployment&rdquo; and the host calls <code>restart_deployment</code>. Which primitive fires?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s3-2" value="a"> Tool &mdash; model-initiated, schema-validated, side-effectful.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s3-2" value="b"> Resource &mdash; the model is reading cluster state.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s3-2" value="c"> Elicitation &mdash; the server is prompting for confirmation.</label>
+        </fieldset>
+
+        <div class="quiz-actions">
+          <button type="button" class="btn primary" data-quiz-action="check">Check answers</button>
+          <button type="button" class="btn" data-quiz-action="reset">Reset</button>
+          <span class="quiz-summary" aria-live="polite"></span>
+        </div>
+      </form>
     </section>
 
     <section id="s4" class="chapter">
