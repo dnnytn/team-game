@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP Server Architecture — An Infrastructure Engineer's Course</title>
+<style>
+/* ---------- reset + base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---------- palette ---------- */
+:root {
+  --bg: #0f1217;
+  --surface: #171b22;
+  --surface-2: #1f2430;
+  --border: #2a303c;
+  --border-strong: #3a4150;
+  --text: #e6e6e6;
+  --text-muted: #9aa4b2;
+  --text-dim: #6b7280;
+  --accent: #5aa9ff;
+  --accent-dim: #2a5a92;
+  --success: #3fb950;
+  --warn: #d29922;
+  --danger: #f85149;
+  --code-bg: #0b0e13;
+  --shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.25);
+}
+
+/* ---------- typography ---------- */
+h1, h2, h3, h4 {
+  color: var(--text);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+h1 { font-size: 2.1rem; margin: 0 0 0.4rem; }
+h2 {
+  font-size: 1.55rem;
+  margin: 3.5rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 1.5rem;
+}
+h2 .num {
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-right: 0.5rem;
+}
+h3 { font-size: 1.1rem; margin: 2rem 0 0.5rem; color: var(--text); }
+h4 { font-size: 0.95rem; margin: 1.25rem 0 0.4rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+p { margin: 0.75rem 0; }
+.lede { font-size: 1.05rem; color: var(--text-muted); max-width: 62ch; }
+.eyebrow {
+  display: inline-block;
+  margin: 0 0 0.5rem;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(90, 169, 255, 0.08);
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, kbd, samp, pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+}
+p code, li code {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  padding: 0.05em 0.35em;
+  border-radius: 4px;
+  color: #c9d6e6;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: #c9d6e6;
+  margin: 1rem 0;
+}
+hr { border: 0; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+
+/* ---------- layout ---------- */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: 3rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 2rem 4rem;
+}
+.toc {
+  position: sticky;
+  top: 2rem;
+  align-self: start;
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  font-size: 0.9rem;
+  border-right: 1px solid var(--border);
+  padding-right: 1.25rem;
+}
+.toc-head {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.75rem;
+}
+.toc ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: toc;
+}
+.toc li { margin: 0; }
+.toc a {
+  display: block;
+  padding: 0.35rem 0.6rem;
+  color: var(--text-muted);
+  border-left: 2px solid transparent;
+  border-radius: 0 4px 4px 0;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.toc a:hover {
+  color: var(--text);
+  background: var(--surface);
+  text-decoration: none;
+}
+.toc a.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: rgba(90, 169, 255, 0.06);
+}
+main { min-width: 0; max-width: 72ch; }
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+}
+.skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+  background: var(--accent);
+  color: var(--bg);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  z-index: 10;
+}
+
+/* ---------- header + footer ---------- */
+.page-head {
+  margin-bottom: 1rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-top: 1rem;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+.meta-row span strong { color: var(--text-muted); font-weight: 600; }
+.page-foot {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+/* ---------- callouts ---------- */
+.callout {
+  margin: 1.25rem 0;
+  padding: 1rem 1.15rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+}
+.callout .callout-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+.callout p:first-of-type { margin-top: 0; }
+.callout p:last-of-type { margin-bottom: 0; }
+
+.callout-running {
+  background: linear-gradient(180deg, rgba(90,169,255,0.06), rgba(90,169,255,0.02));
+  border-left-width: 4px;
+}
+.callout-running .callout-title { color: var(--accent); }
+
+.callout-clusterops {
+  border-left-color: var(--success);
+}
+.callout-clusterops .callout-title { color: var(--success); }
+
+.callout-wild {
+  border-left-color: var(--warn);
+  background: var(--surface);
+}
+.callout-wild .callout-title { color: var(--warn); }
+
+.callout-note { border-left-color: var(--text-muted); }
+.callout-note .callout-title { color: var(--text-muted); }
+
+/* ---------- chapter sections ---------- */
+.chapter {
+  padding-top: 1rem;
+}
+.todo-note {
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+}
+
+/* ---------- tables ---------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+}
+th, td {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom-color: var(--border-strong);
+}
+
+/* ---------- SVG diagrams ---------- */
+.diagram {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.diagram svg { display: block; max-width: 100%; height: auto; }
+.diagram figcaption {
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* ---------- quiz ---------- */
+.quiz {
+  margin: 2rem 0 1rem;
+  padding: 1.25rem 1.25rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.quiz-head {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+.quiz-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+}
+.quiz-q {
+  border: 0;
+  padding: 0.75rem 0;
+  margin: 0;
+  border-top: 1px solid var(--border);
+}
+.quiz-q:first-of-type { border-top: 0; padding-top: 0; }
+.quiz-q legend {
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+  padding: 0;
+  color: var(--text);
+}
+.quiz-opt {
+  display: block;
+  padding: 0.4rem 0.6rem;
+  margin: 0.25rem 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.quiz-opt:hover { background: var(--surface-2); }
+.quiz-opt input {
+  margin-right: 0.6rem;
+  accent-color: var(--accent);
+}
+.quiz-q.correct .quiz-opt.selected {
+  background: rgba(63, 185, 80, 0.1);
+  border-color: var(--success);
+}
+.quiz-q.incorrect .quiz-opt.selected {
+  background: rgba(248, 81, 73, 0.1);
+  border-color: var(--danger);
+}
+.quiz-q.correct .quiz-opt.answer,
+.quiz-q.incorrect .quiz-opt.answer {
+  border-color: var(--success);
+  background: rgba(63, 185, 80, 0.06);
+}
+.quiz-feedback {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+.quiz-q.correct .quiz-feedback {
+  background: rgba(63, 185, 80, 0.08);
+  border: 1px solid rgba(63, 185, 80, 0.35);
+  color: #a7e6b2;
+}
+.quiz-q.incorrect .quiz-feedback {
+  background: rgba(248, 81, 73, 0.08);
+  border: 1px solid rgba(248, 81, 73, 0.35);
+  color: #f4b0ac;
+}
+.quiz-feedback .label {
+  font-weight: 700;
+  margin-right: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+}
+.quiz-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+.btn {
+  font: inherit;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  transition: background 0.1s, border-color 0.1s;
+}
+.btn:hover { background: var(--border); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0a1220;
+  font-weight: 600;
+}
+.btn.primary:hover { background: #7ab8ff; border-color: #7ab8ff; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.quiz-summary {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding: 1rem 1rem 3rem;
+  }
+  .toc {
+    position: static;
+    max-height: none;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0 0 1rem;
+  }
+  .toc ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .toc a { padding: 0.3rem 0.55rem; }
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.3rem; margin-top: 2.5rem; }
+  main { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<div class="layout">
+  <aside class="toc" aria-label="Table of contents">
+    <div class="toc-head">Contents</div>
+    <ol>
+      <li><a href="#s1">1. Why MCP?</a></li>
+      <li><a href="#s2">2. The three roles</a></li>
+      <li><a href="#s3">3. Protocol primitives</a></li>
+      <li><a href="#s4">4. Transports</a></li>
+      <li><a href="#s5">5. JSON-RPC &amp; lifecycle</a></li>
+      <li><a href="#s6">6. Tool call walkthrough</a></li>
+      <li><a href="#s7">7. Deployment topologies</a></li>
+      <li><a href="#s8">8. Authorization</a></li>
+      <li><a href="#s9">9. Airgapped deployments</a></li>
+      <li><a href="#s10">10. Operations &amp; scaling</a></li>
+      <li><a href="#s11">11. Capstone scenario</a></li>
+    </ol>
+  </aside>
+
+  <main id="main">
+
+    <header class="page-head">
+      <p class="eyebrow">Infrastructure Engineer Course</p>
+      <h1>MCP Server Architecture</h1>
+      <p class="lede">
+        From &ldquo;what is MCP?&rdquo; to designing and deploying your own &mdash;
+        local tool, multi-tenant service, and airgapped production &mdash;
+        with inline quizzes after every segment.
+      </p>
+      <div class="meta-row">
+        <span><strong>Spec:</strong> MCP 2025-11-25</span>
+        <span><strong>Transport:</strong> JSON-RPC 2.0</span>
+        <span><strong>Length:</strong> 11 segments &middot; ~20 quiz questions</span>
+        <span><strong>Audience:</strong> infra &amp; platform engineers</span>
+      </div>
+
+      <div class="callout callout-running">
+        <div class="callout-title">Running example &mdash; ClusterOps MCP</div>
+        <p>
+          <strong>ClusterOps</strong> is an internal MCP server at an airgapped bank.
+          It exposes safe Kubernetes operations
+          (<code>list_pods</code>, <code>get_logs</code>,
+          <code>restart_deployment</code>, <code>scale_deployment</code>) to an AI
+          assistant used by roughly 30 on-call SREs. Tools call the in-cluster
+          API server; resources expose runbooks and current manifests; a
+          prompt template drives incident triage. It sits behind an internal
+          gateway that authenticates against the bank&rsquo;s Keycloak.
+          Zero outbound egress.
+        </p>
+        <p>
+          Every segment below has an <strong>In ClusterOps</strong> callout
+          that shows how that concept lands in this one scenario, so the
+          pieces compound instead of resetting each time.
+        </p>
+      </div>
+    </header>
+
+    <section id="s1" class="chapter">
+      <h2><span class="num">1.</span> Why MCP?</h2>
+      <p class="todo-note">Content lands in Chapter 2 of the build.</p>
+    </section>
+
+    <section id="s2" class="chapter">
+      <h2><span class="num">2.</span> The three roles: Host, Client, Server</h2>
+      <p class="todo-note">Content lands in Chapter 2 of the build.</p>
+    </section>
+
+    <section id="s3" class="chapter">
+      <h2><span class="num">3.</span> Protocol primitives</h2>
+      <p class="todo-note">Content lands in Chapter 2 of the build.</p>
+    </section>
+
+    <section id="s4" class="chapter">
+      <h2><span class="num">4.</span> Transports</h2>
+      <p class="todo-note">Content lands in Chapter 3 of the build.</p>
+    </section>
+
+    <section id="s5" class="chapter">
+      <h2><span class="num">5.</span> JSON-RPC 2.0 &amp; the lifecycle</h2>
+      <p class="todo-note">Content lands in Chapter 3 of the build.</p>
+    </section>
+
+    <section id="s6" class="chapter">
+      <h2><span class="num">6.</span> A full tool-call walkthrough</h2>
+      <p class="todo-note">Content lands in Chapter 3 of the build.</p>
+    </section>
+
+    <section id="s7" class="chapter">
+      <h2><span class="num">7.</span> Deployment topologies</h2>
+      <p class="todo-note">Content lands in Chapter 4 of the build.</p>
+    </section>
+
+    <section id="s8" class="chapter">
+      <h2><span class="num">8.</span> Authorization</h2>
+      <p class="todo-note">Content lands in Chapter 4 of the build.</p>
+    </section>
+
+    <section id="s9" class="chapter">
+      <h2><span class="num">9.</span> Airgapped deployments</h2>
+      <p class="todo-note">Content lands in Chapter 4 of the build.</p>
+    </section>
+
+    <section id="s10" class="chapter">
+      <h2><span class="num">10.</span> Operations &amp; scaling</h2>
+      <p class="todo-note">Content lands in Chapter 5 of the build.</p>
+    </section>
+
+    <section id="s11" class="chapter">
+      <h2><span class="num">11.</span> Capstone scenario</h2>
+      <p class="todo-note">Content lands in Chapter 5 of the build.</p>
+    </section>
+
+    <footer class="page-foot">
+      <p>
+        Based on MCP specification <strong>2025-11-25</strong>.
+        This page is fully self-contained &mdash; no external fonts, scripts, or
+        images. It renders correctly on an airgapped laptop, which is fitting
+        given the subject.
+      </p>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+// ---------- quiz helpers ----------
+// Each <form class="quiz"> contains one or more <fieldset class="quiz-q"
+// data-correct="X" data-explain="..."> with radio inputs.
+// The form has a "Check" and "Reset" button wired to these handlers.
+(function () {
+  'use strict';
+
+  function checkQuiz(form) {
+    var questions = form.querySelectorAll('.quiz-q');
+    var total = questions.length;
+    var correct = 0;
+
+    questions.forEach(function (q) {
+      var selected = q.querySelector('input[type=radio]:checked');
+      // reset prior visual state
+      q.classList.remove('correct', 'incorrect');
+      q.querySelectorAll('.quiz-opt').forEach(function (l) {
+        l.classList.remove('selected', 'answer');
+      });
+
+      var answer = q.getAttribute('data-correct');
+      // highlight the canonical correct option
+      var answerInput = q.querySelector('input[value="' + answer + '"]');
+      if (answerInput && answerInput.closest('.quiz-opt')) {
+        answerInput.closest('.quiz-opt').classList.add('answer');
+      }
+
+      if (!selected) {
+        q.classList.add('incorrect');
+        showFeedback(q, false, 'No answer selected.');
+        return;
+      }
+
+      selected.closest('.quiz-opt').classList.add('selected');
+      var isRight = selected.value === answer;
+      if (isRight) correct += 1;
+      q.classList.add(isRight ? 'correct' : 'incorrect');
+      showFeedback(q, isRight, q.getAttribute('data-explain') || '');
+    });
+
+    var summary = form.querySelector('.quiz-summary');
+    if (summary) {
+      summary.textContent = 'Score: ' + correct + ' / ' + total;
+    }
+  }
+
+  function showFeedback(q, ok, explain) {
+    var fb = q.querySelector('.quiz-feedback');
+    if (!fb) {
+      fb = document.createElement('div');
+      fb.className = 'quiz-feedback';
+      q.appendChild(fb);
+    }
+    fb.hidden = false;
+    fb.innerHTML = '<span class="label">' + (ok ? 'Correct' : 'Not quite') + '</span>' +
+      (explain ? explain : '');
+  }
+
+  function resetQuiz(form) {
+    form.querySelectorAll('.quiz-q').forEach(function (q) {
+      q.classList.remove('correct', 'incorrect');
+      q.querySelectorAll('.quiz-opt').forEach(function (l) {
+        l.classList.remove('selected', 'answer');
+      });
+      q.querySelectorAll('input[type=radio]').forEach(function (r) { r.checked = false; });
+      var fb = q.querySelector('.quiz-feedback');
+      if (fb) { fb.hidden = true; fb.innerHTML = ''; }
+    });
+    var summary = form.querySelector('.quiz-summary');
+    if (summary) summary.textContent = '';
+  }
+
+  // delegate clicks on any quiz action button
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-quiz-action]');
+    if (!btn) return;
+    var form = btn.closest('form.quiz');
+    if (!form) return;
+    e.preventDefault();
+    var action = btn.getAttribute('data-quiz-action');
+    if (action === 'check') checkQuiz(form);
+    else if (action === 'reset') resetQuiz(form);
+  });
+
+  // expose for console / debugging
+  window.checkQuiz = checkQuiz;
+  window.resetQuiz = resetQuiz;
+})();
+
+// ---------- ToC scrollspy ----------
+(function () {
+  'use strict';
+  var links = Array.prototype.slice.call(
+    document.querySelectorAll('.toc a[href^="#"]')
+  );
+  if (!links.length || !('IntersectionObserver' in window)) return;
+
+  var byId = {};
+  links.forEach(function (a) {
+    var id = a.getAttribute('href').slice(1);
+    byId[id] = a;
+  });
+
+  var observer = new IntersectionObserver(function (entries) {
+    // pick the topmost visible section
+    var visible = entries
+      .filter(function (e) { return e.isIntersecting; })
+      .sort(function (a, b) {
+        return a.boundingClientRect.top - b.boundingClientRect.top;
+      });
+    if (!visible.length) return;
+    var activeId = visible[0].target.id;
+    links.forEach(function (a) { a.classList.remove('active'); });
+    if (byId[activeId]) byId[activeId].classList.add('active');
+  }, {
+    rootMargin: '-20% 0px -70% 0px',
+    threshold: 0
+  });
+
+  document.querySelectorAll('section.chapter').forEach(function (s) {
+    observer.observe(s);
+  });
+})();
+</script>
+
+</body>
+</html>
