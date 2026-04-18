@@ -513,6 +513,124 @@ th {
         AI hosts&nbsp;&harr;&nbsp;tools and data.
       </p>
 
+      <figure class="diagram" aria-label="N times M bespoke integrations vs N plus M with MCP">
+        <svg viewBox="0 0 720 320" role="img"
+             xmlns="http://www.w3.org/2000/svg"
+             font-family="ui-sans-serif, system-ui, sans-serif"
+             font-size="12" fill="#e6e6e6">
+          <!-- Left panel: without MCP -->
+          <text x="170" y="28" text-anchor="middle" font-weight="600" fill="#f85149">
+            Without MCP
+          </text>
+          <text x="170" y="46" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            3 &times; 3 = 9 bespoke integrations
+          </text>
+
+          <!-- Clients (left panel) -->
+          <g>
+            <rect x="20" y="70" width="110" height="36" rx="5"
+                  fill="#171b22" stroke="#5aa9ff"/>
+            <text x="75" y="93" text-anchor="middle">Claude Desktop</text>
+
+            <rect x="20" y="142" width="110" height="36" rx="5"
+                  fill="#171b22" stroke="#5aa9ff"/>
+            <text x="75" y="165" text-anchor="middle">VS Code</text>
+
+            <rect x="20" y="214" width="110" height="36" rx="5"
+                  fill="#171b22" stroke="#5aa9ff"/>
+            <text x="75" y="237" text-anchor="middle">Internal chat</text>
+          </g>
+          <!-- Tools (left panel) -->
+          <g>
+            <rect x="210" y="70" width="110" height="36" rx="5"
+                  fill="#171b22" stroke="#3fb950"/>
+            <text x="265" y="93" text-anchor="middle">Kubernetes</text>
+
+            <rect x="210" y="142" width="110" height="36" rx="5"
+                  fill="#171b22" stroke="#3fb950"/>
+            <text x="265" y="165" text-anchor="middle">Jira</text>
+
+            <rect x="210" y="214" width="110" height="36" rx="5"
+                  fill="#171b22" stroke="#3fb950"/>
+            <text x="265" y="237" text-anchor="middle">Postgres</text>
+          </g>
+          <!-- 9 tangled lines: three colors to show "bespoke" -->
+          <g stroke-width="1.2" fill="none" opacity="0.7">
+            <path d="M 130 88  L 210 88"  stroke="#f85149"/>
+            <path d="M 130 88  L 210 160" stroke="#f85149"/>
+            <path d="M 130 88  L 210 232" stroke="#f85149"/>
+            <path d="M 130 160 L 210 88"  stroke="#d29922"/>
+            <path d="M 130 160 L 210 160" stroke="#d29922"/>
+            <path d="M 130 160 L 210 232" stroke="#d29922"/>
+            <path d="M 130 232 L 210 88"  stroke="#5aa9ff"/>
+            <path d="M 130 232 L 210 160" stroke="#5aa9ff"/>
+            <path d="M 130 232 L 210 232" stroke="#5aa9ff"/>
+          </g>
+
+          <!-- Divider -->
+          <line x1="360" y1="20" x2="360" y2="300" stroke="#2a303c"
+                stroke-dasharray="4 4"/>
+
+          <!-- Right panel: with MCP -->
+          <text x="550" y="28" text-anchor="middle" font-weight="600" fill="#3fb950">
+            With MCP
+          </text>
+          <text x="550" y="46" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            3 + 3 = 6 interfaces (each side implements MCP once)
+          </text>
+
+          <!-- Clients (right) -->
+          <g>
+            <rect x="400" y="70" width="110" height="36" rx="5"
+                  fill="#171b22" stroke="#5aa9ff"/>
+            <text x="455" y="93" text-anchor="middle">Claude Desktop</text>
+
+            <rect x="400" y="142" width="110" height="36" rx="5"
+                  fill="#171b22" stroke="#5aa9ff"/>
+            <text x="455" y="165" text-anchor="middle">VS Code</text>
+
+            <rect x="400" y="214" width="110" height="36" rx="5"
+                  fill="#171b22" stroke="#5aa9ff"/>
+            <text x="455" y="237" text-anchor="middle">Internal chat</text>
+          </g>
+          <!-- MCP band -->
+          <rect x="540" y="60" width="40" height="200" rx="4"
+                fill="#1f2430" stroke="#5aa9ff" stroke-dasharray="3 3"/>
+          <text x="560" y="165" text-anchor="middle" font-size="11"
+                fill="#5aa9ff" transform="rotate(-90 560 165)">MCP</text>
+          <!-- Servers (right) -->
+          <g>
+            <rect x="610" y="70" width="90" height="36" rx="5"
+                  fill="#171b22" stroke="#3fb950"/>
+            <text x="655" y="93" text-anchor="middle">k8s server</text>
+
+            <rect x="610" y="142" width="90" height="36" rx="5"
+                  fill="#171b22" stroke="#3fb950"/>
+            <text x="655" y="165" text-anchor="middle">jira server</text>
+
+            <rect x="610" y="214" width="90" height="36" rx="5"
+                  fill="#171b22" stroke="#3fb950"/>
+            <text x="655" y="237" text-anchor="middle">pg server</text>
+          </g>
+          <!-- Uniform connections (3 client lines into band, 3 server lines out) -->
+          <g stroke="#5aa9ff" stroke-width="1.4" opacity="0.85">
+            <line x1="510" y1="88"  x2="540" y2="88"/>
+            <line x1="510" y1="160" x2="540" y2="160"/>
+            <line x1="510" y1="232" x2="540" y2="232"/>
+          </g>
+          <g stroke="#3fb950" stroke-width="1.4" opacity="0.85">
+            <line x1="580" y1="88"  x2="610" y2="88"/>
+            <line x1="580" y1="160" x2="610" y2="160"/>
+            <line x1="580" y1="232" x2="610" y2="232"/>
+          </g>
+        </svg>
+        <figcaption>
+          Left: without a standard, each client-tool pair needs its own
+          adapter. Right: both sides implement MCP once; every client can
+          reach every server.
+        </figcaption>
+      </figure>
+
       <div class="callout callout-clusterops">
         <div class="callout-title">In ClusterOps</div>
         <p>
@@ -775,6 +893,81 @@ manifests://prod/deployment/payments.yaml</code></pre>
         the conversation. Prompts let server authors ship reusable
         workflows without the model having to discover them.
       </p>
+
+      <figure class="diagram" aria-label="Who initiates each MCP primitive">
+        <svg viewBox="0 0 720 310" role="img"
+             xmlns="http://www.w3.org/2000/svg"
+             font-family="ui-sans-serif, system-ui, sans-serif"
+             font-size="12" fill="#e6e6e6">
+          <defs>
+            <marker id="arrow-p" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4b2"/>
+            </marker>
+            <marker id="arrow-p-dim" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7280"/>
+            </marker>
+          </defs>
+
+          <!-- Three actor columns -->
+          <rect x="20"  y="30" width="150" height="260" rx="8"
+                fill="#1f2430" stroke="#3a4150"/>
+          <text x="95" y="52" text-anchor="middle" font-weight="600">User</text>
+
+          <rect x="285" y="30" width="150" height="260" rx="8"
+                fill="#1f2430" stroke="#3a4150"/>
+          <text x="360" y="52" text-anchor="middle" font-weight="600">Model</text>
+          <text x="360" y="68" text-anchor="middle" fill="#9aa4b2" font-size="10">
+            (inside host)
+          </text>
+
+          <rect x="550" y="30" width="150" height="260" rx="8"
+                fill="#1f2430" stroke="#3a4150"/>
+          <text x="625" y="52" text-anchor="middle" font-weight="600">Server</text>
+
+          <!-- Primary primitives (left-to-right initiation) -->
+          <g stroke="#5aa9ff" stroke-width="1.5" fill="none">
+            <path d="M 170 110 L 550 110" marker-end="url(#arrow-p)"/>
+          </g>
+          <text x="360" y="103" text-anchor="middle" fill="#5aa9ff" font-size="11">
+            Prompt &nbsp;&mdash;&nbsp; user picks <tspan font-family="ui-monospace, monospace">/triage</tspan>
+          </text>
+
+          <g stroke="#5aa9ff" stroke-width="1.5" fill="none">
+            <path d="M 170 155 L 550 155" marker-end="url(#arrow-p)"/>
+          </g>
+          <text x="360" y="148" text-anchor="middle" fill="#5aa9ff" font-size="11">
+            Resource &nbsp;&mdash;&nbsp; user attaches <tspan font-family="ui-monospace, monospace">runbooks://&hellip;</tspan>
+          </text>
+
+          <g stroke="#3fb950" stroke-width="1.5" fill="none">
+            <path d="M 285 200 L 550 200" marker-end="url(#arrow-p)"/>
+          </g>
+          <text x="418" y="193" text-anchor="middle" fill="#3fb950" font-size="11">
+            Tool &nbsp;&mdash;&nbsp; model calls <tspan font-family="ui-monospace, monospace">restart_deployment</tspan>
+          </text>
+
+          <!-- Advanced / server-initiated (right-to-left, dashed) -->
+          <g stroke="#6b7280" stroke-width="1.2" stroke-dasharray="4 4" fill="none">
+            <path d="M 550 243 L 285 243" marker-end="url(#arrow-p-dim)"/>
+          </g>
+          <text x="418" y="236" text-anchor="middle" fill="#6b7280" font-size="11">
+            Sampling (advanced)
+          </text>
+
+          <g stroke="#6b7280" stroke-width="1.2" stroke-dasharray="4 4" fill="none">
+            <path d="M 550 278 L 170 278" marker-end="url(#arrow-p-dim)"/>
+          </g>
+          <text x="360" y="271" text-anchor="middle" fill="#6b7280" font-size="11">
+            Elicitation (advanced)
+          </text>
+        </svg>
+        <figcaption>
+          Who pulls the trigger determines the primitive. Solid arrows are
+          common; dashed are advanced reverse-direction flows.
+        </figcaption>
+      </figure>
 
       <h3>Everything else</h3>
       <p>
