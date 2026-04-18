@@ -396,6 +396,56 @@ th {
   color: var(--text-muted);
 }
 
+/* ---------- collapsible details ---------- */
+details.aside {
+  margin: 1.25rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+details.aside > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 0.15rem 0;
+  list-style: none;
+}
+details.aside > summary::-webkit-details-marker { display: none; }
+details.aside > summary::before {
+  content: "\25B8";
+  display: inline-block;
+  margin-right: 0.5rem;
+  color: var(--text-dim);
+  transition: transform 0.15s;
+}
+details.aside[open] > summary::before { transform: rotate(90deg); }
+details.aside > *:not(summary):first-of-type { margin-top: 0.75rem; }
+
+/* ---------- phase headers in section 6 ---------- */
+.phase {
+  margin-top: 1.75rem;
+}
+.phase h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+.phase h3 .phase-num {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 3px;
+  background: rgba(90, 169, 255, 0.06);
+  flex-shrink: 0;
+}
+
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
   .layout {
@@ -1436,9 +1486,12 @@ manifests://prod/deployment/payments.yaml</code></pre>
       <h2><span class="num">6.</span> A full tool-call walkthrough</h2>
 
       <p>
-        This is the segment where the primitives, transport, and lifecycle
-        snap into a single picture. Follow one request from the SRE&rsquo;s
-        fingertips through every layer and back.
+        The earlier segments named the pieces. This one walks them in
+        motion: what actually happens, in order, from the moment an SRE
+        types a question to the moment a plain-English reply lands back in
+        the chat. The story has six phases. None of them involve JSON you
+        need to memorise &mdash; they&rsquo;re about <em>who does what and
+        why</em>.
       </p>
 
       <h3>The scenario</h3>
@@ -1448,6 +1501,177 @@ manifests://prod/deployment/payments.yaml</code></pre>
       <blockquote style="border-left:3px solid var(--border-strong);margin:0.75rem 0;padding:0.25rem 1rem;color:var(--text-muted);">
         &ldquo;Payments is slow. Restart the payments deployment in prod.&rdquo;
       </blockquote>
+      <p>
+        The SRE knows nothing about kube-apiserver APIs. The LLM knows
+        nothing about this particular Kubernetes cluster. ClusterOps knows
+        nothing about the SRE. Watch how those gaps close.
+      </p>
+
+      <div class="phase">
+        <h3><span class="phase-num">Phase 1</span> Discovery &mdash; the server hands over a catalog</h3>
+        <p>
+          Right after the <code>initialize</code> handshake (&sect;5), the
+          MCP client asks the server one question: &ldquo;what can you
+          do?&rdquo; It sends a <code>tools/list</code> request, and the
+          server replies with its <strong>catalog</strong>. Every tool
+          shows up with three fields:
+        </p>
+        <ul>
+          <li>A <strong>name</strong> &mdash; the identifier the model
+            later uses to invoke it (<code>restart_deployment</code>).</li>
+          <li>A <strong>description</strong> &mdash; a sentence or two of
+            plain English explaining what the tool does and when to reach
+            for it.</li>
+          <li>An <strong>input schema</strong> &mdash; JSON Schema for the
+            arguments, so both client and server can validate before
+            anything ships.</li>
+        </ul>
+        <p>
+          This catalog is the only thing the host will show the LLM about
+          ClusterOps. It is, literally, the entire product surface. For
+          this session it looks roughly like:
+        </p>
+        <pre><code>Tools available from ClusterOps:
+
+  list_pods(namespace)
+    Return pods in a namespace with phase and restart count.
+    Use when the SRE wants to see what's running.
+
+  get_logs(pod, namespace, tail_lines?)
+    Return recent log lines from a pod's main container.
+    Use when investigating an error or a slowdown.
+
+  restart_deployment(deployment, namespace)
+    Perform a rolling restart of a Deployment by bumping its
+    pod template annotation. Use when a service needs to be
+    cycled cleanly (after a config change, to clear a stuck
+    state, or as a recovery step).
+
+  scale_deployment(deployment, namespace, replicas)
+    Change the desired replica count for a Deployment.
+    Use when adjusting capacity under load.</code></pre>
+        <p>
+          The client stashes this list; it will hand it to the LLM on
+          every turn.
+        </p>
+      </div>
+
+      <div class="phase">
+        <h3><span class="phase-num">Phase 2</span> Comprehension &mdash; descriptions are the interface</h3>
+        <p>
+          This is the subtle part and it is the single most important
+          thing to internalise about MCP. The LLM does not read source
+          code. It does not know what a Deployment is or how
+          kube-apiserver works. It reads <em>those descriptions</em> the
+          same way you&rsquo;d read a tool&rsquo;s README.
+        </p>
+        <p>
+          A description that says &ldquo;Perform a rolling restart of a
+          Deployment&hellip; Use when a service needs to be cycled
+          cleanly&rdquo; teaches the model <em>when</em>
+          <code>restart_deployment</code> is the right answer. A
+          description that says &ldquo;restarts things&rdquo; gives the
+          model nothing and it will guess. Writing good tool descriptions
+          is the MCP server author&rsquo;s primary job &mdash; they&rsquo;re
+          API docs for a reader whose only language is English, because
+          that is exactly what the LLM is.
+        </p>
+        <div class="callout callout-note">
+          <div class="callout-title">Rule of thumb</div>
+          <p>
+            Every description should answer two questions: <em>what does
+            this do?</em> and <em>under what circumstances should the
+            model prefer it over the other tools?</em> The second half is
+            where most server authors skimp and most tool misuse comes
+            from.
+          </p>
+        </div>
+      </div>
+
+      <div class="phase">
+        <h3><span class="phase-num">Phase 3</span> Decision &mdash; intent becomes a proposed call</h3>
+        <p>
+          With the catalog loaded, the LLM takes the SRE&rsquo;s natural
+          language (&ldquo;restart the payments deployment in prod&rdquo;)
+          and compares it against every tool description it was given. It
+          concludes: the match is <code>restart_deployment</code>, with
+          arguments <code>{deployment: "payments", namespace: "prod"}</code>.
+          It validates those arguments against the input schema it was
+          handed in phase&nbsp;1 before producing them.
+        </p>
+        <p>
+          At this instant the LLM has produced a <strong>proposed</strong>
+          tool call. Nothing has left the host yet. Nothing has touched
+          the cluster. The LLM cannot act on its own &mdash; it can only
+          hand the proposal to the host and ask to proceed.
+        </p>
+      </div>
+
+      <div class="phase">
+        <h3><span class="phase-num">Phase 4</span> Approval &mdash; the host is the gatekeeper</h3>
+        <p>
+          The host sees the proposed call and applies policy. For a
+          read-only call (<code>list_pods</code>, <code>get_logs</code>),
+          policy may auto-approve. For anything side-effectful &mdash;
+          anything that mutates cluster state &mdash; it shows the SRE the
+          exact call it&rsquo;s about to make and waits for a yes.
+        </p>
+        <p>
+          Critically, this gate sits in the <strong>host</strong>, not the
+          server. The server will happily execute whatever it receives
+          once auth is satisfied. The responsibility for &ldquo;should we
+          actually do this?&rdquo; lives with the human-facing component,
+          because the host is the only part of the system that can show
+          the SRE a prompt and get a click back.
+        </p>
+      </div>
+
+      <div class="phase">
+        <h3><span class="phase-num">Phase 5</span> Execution &mdash; the server touches the real service</h3>
+        <p>
+          Approved, the client sends <code>tools/call</code> with the
+          name and arguments across the transport (&sect;4). The
+          ClusterOps server is the only component in the whole chain that
+          holds the in-cluster kubeconfig and the only one that can speak
+          to kube-apiserver. It revalidates the arguments against the
+          schema, issues the real Kubernetes API call &mdash; here, a
+          <code>PATCH</code> on the Deployment that bumps a pod-template
+          annotation &mdash; and receives the actual outcome.
+        </p>
+        <p>
+          This is the only layer where the abstract &ldquo;call a
+          tool&rdquo; becomes a concrete side effect on the cluster. It&rsquo;s
+          also the layer where audit logging should happen: who called
+          what, with which arguments, against which target (&sect;10).
+        </p>
+      </div>
+
+      <div class="phase">
+        <h3><span class="phase-num">Phase 6</span> Explanation &mdash; back to natural language</h3>
+        <p>
+          The server wraps the Kubernetes outcome into MCP&rsquo;s result
+          format &mdash; a small block of content items, each of type
+          <code>text</code> or structured data &mdash; and ships it back.
+          The host hands that to the LLM, which composes a reply in the
+          voice of the conversation so far: <em>&ldquo;Restarted payments
+          in prod; the rollout is in progress and new pods are coming
+          up.&rdquo;</em>
+        </p>
+        <p>
+          The SRE reads that sentence. They never see the JSON request,
+          they never see the HTTP path, they never see the schema. Everything
+          the protocol did is hidden behind one round-trip of plain
+          conversation. That is the whole value of MCP in a nutshell.
+        </p>
+      </div>
+
+      <h3>All six phases as a single picture</h3>
+      <p>
+        Here is the same story as a sequence diagram. Each numbered
+        arrow corresponds to one of the thirteen discrete messages across
+        the five actors. Gray is outbound; green is the return leg. Steps
+        2 and 12 are internal host work and carry no wire traffic.
+      </p>
 
       <figure class="diagram" aria-label="Sequence diagram of a full tool call">
         <svg viewBox="0 0 780 500" role="img"
@@ -1583,11 +1807,27 @@ manifests://prod/deployment/payments.yaml</code></pre>
         </figcaption>
       </figure>
 
-      <h3>The wire bytes</h3>
-      <p>
-        Step 7 &mdash; the <code>tools/call</code> that crosses the wire:
-      </p>
-      <pre><code>POST /mcp HTTP/1.1
+      <div class="callout callout-clusterops">
+        <div class="callout-title">In ClusterOps</div>
+        <p>
+          Between phases 5 and 6, the server&rsquo;s actual work is one
+          call to the Kubernetes API &mdash; the MCP equivalent of
+          <code>kubectl rollout restart deployment/payments -n prod</code>.
+          That is all. The whole protocol dance exists so the SRE
+          doesn&rsquo;t have to remember exact kubectl syntax under
+          pressure, so the model reaches for the right action
+          automatically, and so the audit trail captures who asked for
+          what against a real user identity (see &sect;8).
+        </p>
+      </div>
+
+      <details class="aside">
+        <summary>For the curious &mdash; what the wire actually carries</summary>
+        <p>
+          Everything above happens at the conceptual layer. Here&rsquo;s
+          what the bytes look like for phase&nbsp;5&rsquo;s request:
+        </p>
+        <pre><code>POST /mcp HTTP/1.1
 Host: clusterops.internal.bank
 Authorization: Bearer eyJhbGciOi...
 Mcp-Session-Id: 9f0e8d7c-4b2a-41e7-9ae4-1c3f0b2d5a68
@@ -1602,9 +1842,8 @@ Content-Type: application/json
     "arguments": { "deployment": "payments", "namespace": "prod" }
   }
 }</code></pre>
-
-      <p>Step 10 &mdash; ClusterOps&rsquo;s response:</p>
-      <pre><code>HTTP/1.1 200 OK
+        <p>And phase&nbsp;6&rsquo;s response back to the client:</p>
+        <pre><code>HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
@@ -1618,25 +1857,13 @@ Content-Type: application/json
     "isError": false
   }
 }</code></pre>
-
-      <p>
-        Note <code>id: 42</code> matches across request and response &mdash;
-        that is how the client correlates replies, and why structured logs
-        on JSON-RPC <code>id</code> are so useful (see &sect;10).
-      </p>
-
-      <div class="callout callout-clusterops">
-        <div class="callout-title">In ClusterOps</div>
         <p>
-          Between steps 8 and 9 the server&rsquo;s actual work is one call
-          to the Kubernetes API: <code>kubectl patch deployment payments -n
-          prod --patch '{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"2026-04-18T&hellip;Z"}}}}}'</code>.
-          That&rsquo;s it. The whole protocol dance exists so the SRE
-          doesn&rsquo;t have to remember that incantation under pressure,
-          and so the audit log captures who asked for what via a real
-          user identity (see &sect;8).
+          <code>id: 42</code> matches across request and response. That is
+          how the client pairs a reply with the request that triggered it,
+          and it&rsquo;s why structured logs keyed on JSON-RPC
+          <code>id</code> are such a good audit substrate (see &sect;10).
         </p>
-      </div>
+      </details>
 
       <form class="quiz" aria-label="Section 6 quiz">
         <div class="quiz-head">Check yourself</div>
