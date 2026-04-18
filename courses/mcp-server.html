@@ -1036,17 +1036,634 @@ manifests://prod/deployment/payments.yaml</code></pre>
 
     <section id="s4" class="chapter">
       <h2><span class="num">4.</span> Transports</h2>
-      <p class="todo-note">Content lands in Chapter 3 of the build.</p>
+
+      <p>
+        The protocol layer (JSON-RPC 2.0, described in &sect;5) is the same
+        whatever channel it rides on. The <strong>transport</strong> is
+        that channel. MCP defines two production transports plus a legacy
+        one you&rsquo;ll occasionally bump into.
+      </p>
+
+      <h3>stdio &mdash; local subprocess</h3>
+      <p>
+        The host launches the server as a child process and speaks JSON-RPC
+        over <code>stdin</code> / <code>stdout</code>. One request per
+        newline, <code>stderr</code> reserved for logs. There is no network,
+        no authentication, no multi-tenancy: the OS user who ran the host
+        <em>is</em> the authenticated identity, and each host gets its own
+        subprocess.
+      </p>
+
+      <h3>Streamable HTTP &mdash; the current remote standard</h3>
+      <p>
+        Introduced in the 2025-03-26 revision and now the default for remote
+        servers. A single HTTP endpoint (usually <code>/mcp</code>) accepts
+        <code>POST</code>s carrying JSON-RPC requests. For server-to-client
+        pushes (progress notifications, sampling requests), the same
+        endpoint can upgrade the response into a Server-Sent Events stream.
+        State between calls is carried by an opaque <code>Mcp-Session-Id</code>
+        header the server issues on <code>initialize</code>.
+      </p>
+
+      <h3>HTTP+SSE &mdash; legacy, deprecated</h3>
+      <p>
+        The original remote transport (pre-2025-03-26) used two separate
+        endpoints &mdash; <code>POST /messages</code> for client requests
+        and <code>GET /sse</code> for a long-lived server-sent-events
+        channel. Deprecated and superseded by Streamable HTTP. You
+        shouldn&rsquo;t deploy a new server on it; you may need to bridge
+        clients that only speak it.
+      </p>
+
+      <figure class="diagram" aria-label="stdio versus Streamable HTTP transport">
+        <svg viewBox="0 0 720 290" role="img"
+             xmlns="http://www.w3.org/2000/svg"
+             font-family="ui-sans-serif, system-ui, sans-serif"
+             font-size="12" fill="#e6e6e6">
+          <defs>
+            <marker id="arrow-t" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4b2"/>
+            </marker>
+          </defs>
+
+          <!-- Left panel: stdio -->
+          <text x="170" y="28" text-anchor="middle" font-weight="600" fill="#5aa9ff">
+            stdio
+          </text>
+          <text x="170" y="46" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            local, single-user, no network
+          </text>
+
+          <!-- Host (left) -->
+          <rect x="30" y="80" width="280" height="170" rx="8"
+                fill="#1f2430" stroke="#3a4150"/>
+          <text x="170" y="105" text-anchor="middle" font-weight="600">Host process</text>
+
+          <!-- Subprocess inside host -->
+          <rect x="65" y="130" width="210" height="90" rx="6"
+                fill="#171b22" stroke="#3fb950"/>
+          <text x="170" y="158" text-anchor="middle">MCP Server</text>
+          <text x="170" y="178" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            (child process)
+          </text>
+          <text x="170" y="200" text-anchor="middle" fill="#9aa4b2" font-size="10">
+            stdin &middot; stdout &middot; stderr
+          </text>
+
+          <!-- Pipe indicator -->
+          <path d="M 170 122 L 170 128" stroke="#9aa4b2" stroke-width="1.5"
+                marker-end="url(#arrow-t)" marker-start="url(#arrow-t)"/>
+
+          <!-- Divider -->
+          <line x1="360" y1="20" x2="360" y2="270" stroke="#2a303c"
+                stroke-dasharray="4 4"/>
+
+          <!-- Right panel: Streamable HTTP -->
+          <text x="550" y="28" text-anchor="middle" font-weight="600" fill="#5aa9ff">
+            Streamable HTTP
+          </text>
+          <text x="550" y="46" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            remote, multi-tenant, HTTPS + SSE
+          </text>
+
+          <!-- Client (host) -->
+          <rect x="400" y="100" width="120" height="70" rx="6"
+                fill="#171b22" stroke="#5aa9ff"/>
+          <text x="460" y="130" text-anchor="middle">Host</text>
+          <text x="460" y="150" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            +&nbsp;MCP client
+          </text>
+
+          <!-- Network cloud -->
+          <text x="550" y="118" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            POST /mcp
+          </text>
+          <path d="M 520 135 L 580 135" stroke="#9aa4b2" stroke-width="1.5"
+                marker-end="url(#arrow-t)"/>
+          <text x="550" y="166" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            SSE stream
+          </text>
+          <path d="M 580 150 L 520 150" stroke="#9aa4b2" stroke-width="1.5"
+                stroke-dasharray="3 3" marker-end="url(#arrow-t)"/>
+
+          <!-- Server -->
+          <rect x="580" y="100" width="120" height="70" rx="6"
+                fill="#171b22" stroke="#3fb950"/>
+          <text x="640" y="130" text-anchor="middle">MCP Server</text>
+          <text x="640" y="150" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            behind gateway
+          </text>
+
+          <!-- Session hint -->
+          <text x="550" y="210" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            Mcp-Session-Id header tracks state
+          </text>
+        </svg>
+        <figcaption>
+          stdio runs the server as a child process and pipes JSON-RPC over
+          stdin/stdout. Streamable HTTP puts the server on the network behind
+          a single endpoint, with a session header tying requests together.
+        </figcaption>
+      </figure>
+
+      <h3>Picking one</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Factor</th>
+            <th>stdio</th>
+            <th>Streamable HTTP</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Audience</td>
+            <td>Single user on this machine</td>
+            <td>Multi-user or remote</td>
+          </tr>
+          <tr>
+            <td>Auth</td>
+            <td>OS user = identity, no extra auth</td>
+            <td>OAuth 2.1 (see &sect;8)</td>
+          </tr>
+          <tr>
+            <td>Scaling</td>
+            <td>One subprocess per host</td>
+            <td>Horizontal; session affinity needed</td>
+          </tr>
+          <tr>
+            <td>Typical use</td>
+            <td>Filesystem, git, local DB dump</td>
+            <td>Internal platform tools, SaaS APIs</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-clusterops">
+        <div class="callout-title">In ClusterOps</div>
+        <p>
+          Thirty SREs share one ClusterOps instance, so stdio is a non-starter
+          &mdash; you&rsquo;d have to ship kubeconfig to every laptop and
+          give each SRE their own copy of the server process. ClusterOps
+          runs as a Deployment behind a ClusterIP Service inside the
+          cluster and speaks <strong>Streamable HTTP</strong> on
+          <code>/mcp</code>. The gateway in front of it (see &sect;7) handles
+          OAuth before any JSON-RPC traffic reaches ClusterOps itself.
+        </p>
+      </div>
+
+      <div class="callout callout-wild">
+        <div class="callout-title">In the wild</div>
+        <p>
+          Anthropic&rsquo;s reference <code>filesystem</code>,
+          <code>git</code>, and <code>sqlite</code> servers are stdio &mdash;
+          they operate on local state that already belongs to the OS user.
+          Cloudflare&rsquo;s hosted MCPs and GitHub&rsquo;s remote MCP
+          server are all Streamable HTTP, because sharing them across users
+          is the whole point.
+        </p>
+      </div>
+
+      <form class="quiz" aria-label="Section 4 quiz">
+        <div class="quiz-head">Check yourself</div>
+        <p class="quiz-title">Two questions on &sect;4.</p>
+
+        <fieldset class="quiz-q" data-correct="b"
+          data-explain="stdio servers run as a child process of the host, so each host launches its own subprocess. That works perfectly for one user on one machine but would require distributing kubeconfig to every SRE's laptop for ClusterOps.">
+          <legend>1. Why is stdio a poor fit for ClusterOps?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s4-1" value="a"> stdio can&rsquo;t carry JSON &mdash; the protocol needs HTTP framing.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s4-1" value="b"> stdio servers are per-host child processes, so every SRE would need their own copy of the server and its credentials.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s4-1" value="c"> stdio doesn&rsquo;t support server-to-client notifications, which ClusterOps needs.</label>
+        </fieldset>
+
+        <fieldset class="quiz-q" data-correct="c"
+          data-explain="Streamable HTTP exposes a single endpoint that accepts POSTs and can upgrade the response to a Server-Sent Events stream for server-to-client pushes. The Mcp-Session-Id header correlates calls that belong to the same client.">
+          <legend>2. In Streamable HTTP, how does the server push progress notifications back to the client?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s4-2" value="a"> It opens a second TCP connection initiated from the server.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s4-2" value="b"> It writes to a dedicated <code>/notify</code> endpoint the client polls on an interval.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s4-2" value="c"> The response to a POST can upgrade into a Server-Sent Events stream on the same connection.</label>
+        </fieldset>
+
+        <div class="quiz-actions">
+          <button type="button" class="btn primary" data-quiz-action="check">Check answers</button>
+          <button type="button" class="btn" data-quiz-action="reset">Reset</button>
+          <span class="quiz-summary" aria-live="polite"></span>
+        </div>
+      </form>
     </section>
 
     <section id="s5" class="chapter">
       <h2><span class="num">5.</span> JSON-RPC 2.0 &amp; the lifecycle</h2>
-      <p class="todo-note">Content lands in Chapter 3 of the build.</p>
+
+      <p>
+        Every MCP message is JSON-RPC 2.0. Three shapes, one per role:
+        <strong>request</strong> (has <code>id</code>, expects a response),
+        <strong>response</strong> (echoes the same <code>id</code>, carries
+        <code>result</code> or <code>error</code>), and
+        <strong>notification</strong> (no <code>id</code>, fire-and-forget).
+      </p>
+
+      <pre><code>// request
+{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{...}}
+
+// success response
+{"jsonrpc":"2.0","id":42,"result":{...}}
+
+// error response
+{"jsonrpc":"2.0","id":42,"error":{"code":-32602,"message":"Invalid params"}}
+
+// notification (no id, no reply)
+{"jsonrpc":"2.0","method":"notifications/progress","params":{...}}</code></pre>
+
+      <h3>The lifecycle</h3>
+      <p>
+        A session has three phases: <strong>initialize</strong>,
+        <strong>operate</strong>, <strong>shut down</strong>. The first one
+        is where capability negotiation happens &mdash; neither side
+        advertises anything before it, neither side assumes anything after.
+      </p>
+
+      <figure class="diagram" aria-label="MCP lifecycle phases">
+        <svg viewBox="0 0 720 280" role="img"
+             xmlns="http://www.w3.org/2000/svg"
+             font-family="ui-sans-serif, system-ui, sans-serif"
+             font-size="12" fill="#e6e6e6">
+          <defs>
+            <marker id="arrow-l" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4b2"/>
+            </marker>
+          </defs>
+
+          <!-- Two lifelines -->
+          <text x="110" y="30" text-anchor="middle" font-weight="600" fill="#5aa9ff">Client</text>
+          <text x="610" y="30" text-anchor="middle" font-weight="600" fill="#3fb950">Server</text>
+          <line x1="110" y1="40" x2="110" y2="260" stroke="#3a4150"/>
+          <line x1="610" y1="40" x2="610" y2="260" stroke="#3a4150"/>
+
+          <!-- Phase bands on the left -->
+          <rect x="10" y="55" width="12" height="80" rx="2" fill="#2a5a92"/>
+          <text x="30" y="100" fill="#5aa9ff" font-size="11">Initialize</text>
+
+          <rect x="10" y="150" width="12" height="55" rx="2" fill="#3fb950" opacity="0.7"/>
+          <text x="30" y="185" fill="#3fb950" font-size="11">Operate</text>
+
+          <rect x="10" y="215" width="12" height="30" rx="2" fill="#6b7280"/>
+          <text x="30" y="236" fill="#9aa4b2" font-size="11">Shutdown</text>
+
+          <!-- Initialize: request -->
+          <path d="M 115 70 L 605 70" stroke="#9aa4b2" stroke-width="1.5"
+                fill="none" marker-end="url(#arrow-l)"/>
+          <text x="360" y="64" text-anchor="middle" fill="#e6e6e6" font-size="11">
+            initialize &nbsp;(protocolVersion, capabilities, clientInfo)
+          </text>
+
+          <!-- Initialize: response -->
+          <path d="M 605 95 L 115 95" stroke="#9aa4b2" stroke-width="1.5"
+                fill="none" marker-end="url(#arrow-l)"/>
+          <text x="360" y="89" text-anchor="middle" fill="#e6e6e6" font-size="11">
+            result &nbsp;(protocolVersion, capabilities, serverInfo)
+          </text>
+
+          <!-- Initialized notification -->
+          <path d="M 115 125 L 605 125" stroke="#9aa4b2" stroke-width="1.2"
+                stroke-dasharray="4 3" fill="none" marker-end="url(#arrow-l)"/>
+          <text x="360" y="119" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            notifications/initialized &nbsp;(no id)
+          </text>
+
+          <!-- Operate: tools/list -->
+          <path d="M 115 165 L 605 165" stroke="#9aa4b2" stroke-width="1.5"
+                fill="none" marker-end="url(#arrow-l)"/>
+          <text x="360" y="159" text-anchor="middle" fill="#e6e6e6" font-size="11">
+            tools/list &nbsp;&rarr;&nbsp; result: [list_pods, get_logs, &hellip;]
+          </text>
+
+          <!-- Operate: tools/call -->
+          <path d="M 115 195 L 605 195" stroke="#9aa4b2" stroke-width="1.5"
+                fill="none" marker-end="url(#arrow-l)"/>
+          <text x="360" y="189" text-anchor="middle" fill="#e6e6e6" font-size="11">
+            tools/call &nbsp;&rarr;&nbsp; result
+          </text>
+
+          <!-- Shutdown -->
+          <path d="M 115 230 L 605 230" stroke="#6b7280" stroke-width="1.2"
+                fill="none" marker-end="url(#arrow-l)"/>
+          <text x="360" y="224" text-anchor="middle" fill="#9aa4b2" font-size="11">
+            transport close (stdio: EOF&nbsp;&middot;&nbsp;HTTP: session ends)
+          </text>
+        </svg>
+        <figcaption>
+          Three phases. Dashed arrow is a notification (no response).
+          Operate is just &ldquo;normal RPCs&rdquo; once the handshake
+          completes.
+        </figcaption>
+      </figure>
+
+      <h3>Capability negotiation</h3>
+      <p>
+        In the <code>initialize</code> request the client advertises what
+        it can do for the server (e.g. <code>sampling</code>); the server
+        advertises what it exposes (<code>tools</code>, <code>resources</code>,
+        <code>prompts</code>, &hellip;). Each side must not use a feature
+        the other didn&rsquo;t advertise. This is also where both sides
+        agree on the <code>protocolVersion</code>.
+      </p>
+
+      <div class="callout callout-clusterops">
+        <div class="callout-title">In ClusterOps</div>
+        <p>
+          The SRE&rsquo;s client sends (abbreviated):
+        </p>
+        <pre><code>{
+  "jsonrpc": "2.0", "id": 1, "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-11-25",
+    "capabilities": { "sampling": {}, "roots": { "listChanged": true } },
+    "clientInfo": { "name": "bank-internal-chat", "version": "1.4.0" }
+  }
+}</code></pre>
+        <p>ClusterOps responds:</p>
+        <pre><code>{
+  "jsonrpc": "2.0", "id": 1,
+  "result": {
+    "protocolVersion": "2025-11-25",
+    "capabilities": {
+      "tools":     { "listChanged": true },
+      "resources": { "subscribe": false, "listChanged": true },
+      "prompts":   { "listChanged": false }
+    },
+    "serverInfo": { "name": "clusterops", "version": "0.9.2" }
+  }
+}</code></pre>
+        <p>
+          No <code>sampling</code>, no <code>roots</code>, no
+          <code>elicitation</code> on the server side &mdash; ClusterOps is
+          deliberately conservative.
+        </p>
+      </div>
+
+      <form class="quiz" aria-label="Section 5 quiz">
+        <div class="quiz-head">Check yourself</div>
+        <p class="quiz-title">Two questions on &sect;5.</p>
+
+        <fieldset class="quiz-q" data-correct="c"
+          data-explain="A notification has a method but no id, and expects no response. Requests have an id and get a matching response back.">
+          <legend>1. What distinguishes a JSON-RPC notification from a request?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s5-1" value="a"> Notifications carry binary payloads; requests are JSON only.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s5-1" value="b"> Notifications flow server-to-client only; requests flow client-to-server only.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s5-1" value="c"> Notifications omit the <code>id</code> field and receive no response.</label>
+        </fieldset>
+
+        <fieldset class="quiz-q" data-correct="b"
+          data-explain="Capability negotiation happens once, during the initialize handshake. Each side declares the features it supports; neither side may use a feature the other didn't advertise.">
+          <legend>2. When does capability negotiation happen?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s5-2" value="a"> Before every tool call, via a <code>capabilities/check</code> request.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s5-2" value="b"> Once, during the <code>initialize</code> handshake &mdash; both sides declare up front.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s5-2" value="c"> It doesn&rsquo;t &mdash; MCP has a fixed feature set and everyone supports everything.</label>
+        </fieldset>
+
+        <div class="quiz-actions">
+          <button type="button" class="btn primary" data-quiz-action="check">Check answers</button>
+          <button type="button" class="btn" data-quiz-action="reset">Reset</button>
+          <span class="quiz-summary" aria-live="polite"></span>
+        </div>
+      </form>
     </section>
 
     <section id="s6" class="chapter">
       <h2><span class="num">6.</span> A full tool-call walkthrough</h2>
-      <p class="todo-note">Content lands in Chapter 3 of the build.</p>
+
+      <p>
+        This is the segment where the primitives, transport, and lifecycle
+        snap into a single picture. Follow one request from the SRE&rsquo;s
+        fingertips through every layer and back.
+      </p>
+
+      <h3>The scenario</h3>
+      <p>
+        Payments latency has spiked. The on-call SRE types into the chat:
+      </p>
+      <blockquote style="border-left:3px solid var(--border-strong);margin:0.75rem 0;padding:0.25rem 1rem;color:var(--text-muted);">
+        &ldquo;Payments is slow. Restart the payments deployment in prod.&rdquo;
+      </blockquote>
+
+      <figure class="diagram" aria-label="Sequence diagram of a full tool call">
+        <svg viewBox="0 0 780 500" role="img"
+             xmlns="http://www.w3.org/2000/svg"
+             font-family="ui-sans-serif, system-ui, sans-serif"
+             font-size="11" fill="#e6e6e6">
+          <defs>
+            <marker id="arrow-s" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4b2"/>
+            </marker>
+            <marker id="arrow-s-ret" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#3fb950"/>
+            </marker>
+          </defs>
+
+          <!-- Actor headers -->
+          <g font-weight="600">
+            <rect x="30"  y="20" width="110" height="30" rx="4" fill="#1f2430" stroke="#3a4150"/>
+            <text x="85"  y="40" text-anchor="middle">SRE</text>
+
+            <rect x="170" y="20" width="140" height="30" rx="4" fill="#1f2430" stroke="#5aa9ff"/>
+            <text x="240" y="40" text-anchor="middle" fill="#5aa9ff">Host + LLM</text>
+
+            <rect x="340" y="20" width="110" height="30" rx="4" fill="#1f2430" stroke="#5aa9ff"/>
+            <text x="395" y="40" text-anchor="middle" fill="#5aa9ff">MCP Client</text>
+
+            <rect x="480" y="20" width="140" height="30" rx="4" fill="#1f2430" stroke="#3fb950"/>
+            <text x="550" y="40" text-anchor="middle" fill="#3fb950">ClusterOps</text>
+
+            <rect x="650" y="20" width="110" height="30" rx="4" fill="#1f2430" stroke="#3fb950"/>
+            <text x="705" y="40" text-anchor="middle" fill="#3fb950">kube-apiserver</text>
+          </g>
+
+          <!-- Lifelines -->
+          <g stroke="#3a4150">
+            <line x1="85"  y1="55" x2="85"  y2="480"/>
+            <line x1="240" y1="55" x2="240" y2="480"/>
+            <line x1="395" y1="55" x2="395" y2="480"/>
+            <line x1="550" y1="55" x2="550" y2="480"/>
+            <line x1="705" y1="55" x2="705" y2="480"/>
+          </g>
+
+          <!-- 1. user prompt -->
+          <path d="M 90 75 L 235 75" stroke="#9aa4b2" stroke-width="1.4"
+                fill="none" marker-end="url(#arrow-s)"/>
+          <text x="162" y="69" text-anchor="middle" fill="#e6e6e6">
+            1. &ldquo;restart payments in prod&rdquo;
+          </text>
+
+          <!-- 2. host already has tools/list cached from initialize -->
+          <rect x="175" y="95" width="130" height="22" rx="3" fill="#171b22" stroke="#5aa9ff"/>
+          <text x="240" y="110" text-anchor="middle" fill="#9aa4b2">
+            2. cache hit: tools/list
+          </text>
+
+          <!-- 3. model picks tool -->
+          <rect x="175" y="130" width="130" height="36" rx="3" fill="#171b22" stroke="#5aa9ff"/>
+          <text x="240" y="145" text-anchor="middle" fill="#5aa9ff">3. LLM picks</text>
+          <text x="240" y="159" text-anchor="middle" fill="#9aa4b2" font-family="ui-monospace, monospace" font-size="10">
+            restart_deployment
+          </text>
+
+          <!-- 4. approval prompt back to user -->
+          <path d="M 235 180 L 90 180" stroke="#9aa4b2" stroke-width="1.4"
+                fill="none" marker-end="url(#arrow-s)"/>
+          <text x="162" y="174" text-anchor="middle">
+            4. approve?&nbsp;(deployment=payments, ns=prod)
+          </text>
+
+          <path d="M 90 202 L 235 202" stroke="#9aa4b2" stroke-width="1.4"
+                fill="none" marker-end="url(#arrow-s)"/>
+          <text x="162" y="196" text-anchor="middle">5. yes</text>
+
+          <!-- 6. host -> client: tools/call -->
+          <path d="M 245 228 L 390 228" stroke="#9aa4b2" stroke-width="1.4"
+                fill="none" marker-end="url(#arrow-s)"/>
+          <text x="318" y="222" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10">
+            6. tools/call
+          </text>
+
+          <!-- 7. client -> server JSON-RPC -->
+          <path d="M 400 255 L 545 255" stroke="#9aa4b2" stroke-width="1.4"
+                fill="none" marker-end="url(#arrow-s)"/>
+          <text x="472" y="249" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10">
+            7. POST /mcp {id:42, tools/call}
+          </text>
+
+          <!-- 8. server -> k8s: patch -->
+          <path d="M 555 285 L 700 285" stroke="#9aa4b2" stroke-width="1.4"
+                fill="none" marker-end="url(#arrow-s)"/>
+          <text x="627" y="279" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10">
+            8. PATCH deployments/payments
+          </text>
+
+          <!-- 9. k8s -> server: 200 OK -->
+          <path d="M 700 312 L 555 312" stroke="#3fb950" stroke-width="1.4"
+                fill="none" marker-end="url(#arrow-s-ret)"/>
+          <text x="627" y="306" text-anchor="middle" fill="#3fb950">
+            9. 200 OK, generation +1
+          </text>
+
+          <!-- 10. server -> client: result -->
+          <path d="M 545 340 L 400 340" stroke="#3fb950" stroke-width="1.4"
+                fill="none" marker-end="url(#arrow-s-ret)"/>
+          <text x="472" y="334" text-anchor="middle" fill="#3fb950" font-family="ui-monospace, monospace" font-size="10">
+            10. result {id:42, content:&hellip;}
+          </text>
+
+          <!-- 11. client -> host -->
+          <path d="M 390 368 L 245 368" stroke="#3fb950" stroke-width="1.4"
+                fill="none" marker-end="url(#arrow-s-ret)"/>
+          <text x="318" y="362" text-anchor="middle" fill="#3fb950" font-family="ui-monospace, monospace" font-size="10">
+            11. tool result
+          </text>
+
+          <!-- 12. LLM reasons -->
+          <rect x="175" y="390" width="130" height="36" rx="3" fill="#171b22" stroke="#5aa9ff"/>
+          <text x="240" y="405" text-anchor="middle" fill="#5aa9ff">12. LLM composes</text>
+          <text x="240" y="419" text-anchor="middle" fill="#9aa4b2" font-size="10">natural-language reply</text>
+
+          <!-- 13. reply to user -->
+          <path d="M 235 448 L 90 448" stroke="#3fb950" stroke-width="1.4"
+                fill="none" marker-end="url(#arrow-s-ret)"/>
+          <text x="162" y="442" text-anchor="middle" fill="#3fb950">
+            13. &ldquo;Restarted payments; rollout in progress.&rdquo;
+          </text>
+        </svg>
+        <figcaption>
+          Thirteen steps, one tool call. Gray arrows are outbound; green
+          arrows are the return leg. Steps 2 and 12 are internal host work.
+        </figcaption>
+      </figure>
+
+      <h3>The wire bytes</h3>
+      <p>
+        Step 7 &mdash; the <code>tools/call</code> that crosses the wire:
+      </p>
+      <pre><code>POST /mcp HTTP/1.1
+Host: clusterops.internal.bank
+Authorization: Bearer eyJhbGciOi...
+Mcp-Session-Id: 9f0e8d7c-4b2a-41e7-9ae4-1c3f0b2d5a68
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 42,
+  "method": "tools/call",
+  "params": {
+    "name": "restart_deployment",
+    "arguments": { "deployment": "payments", "namespace": "prod" }
+  }
+}</code></pre>
+
+      <p>Step 10 &mdash; ClusterOps&rsquo;s response:</p>
+      <pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 42,
+  "result": {
+    "content": [
+      { "type": "text",
+        "text": "Rolled out deployments/payments in namespace prod. generation: 38" }
+    ],
+    "isError": false
+  }
+}</code></pre>
+
+      <p>
+        Note <code>id: 42</code> matches across request and response &mdash;
+        that is how the client correlates replies, and why structured logs
+        on JSON-RPC <code>id</code> are so useful (see &sect;10).
+      </p>
+
+      <div class="callout callout-clusterops">
+        <div class="callout-title">In ClusterOps</div>
+        <p>
+          Between steps 8 and 9 the server&rsquo;s actual work is one call
+          to the Kubernetes API: <code>kubectl patch deployment payments -n
+          prod --patch '{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"2026-04-18T&hellip;Z"}}}}}'</code>.
+          That&rsquo;s it. The whole protocol dance exists so the SRE
+          doesn&rsquo;t have to remember that incantation under pressure,
+          and so the audit log captures who asked for what via a real
+          user identity (see &sect;8).
+        </p>
+      </div>
+
+      <form class="quiz" aria-label="Section 6 quiz">
+        <div class="quiz-head">Check yourself</div>
+        <p class="quiz-title">Two questions on &sect;6.</p>
+
+        <fieldset class="quiz-q" data-correct="b"
+          data-explain="The id field is the correlation key. A client may have many in-flight requests; the server's reply carries the same id so the client knows which request it answers.">
+          <legend>1. What does the <code>id</code> field do in the JSON-RPC exchange?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s6-1" value="a"> It identifies the user session across the whole deployment.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s6-1" value="b"> It correlates one response with its specific request, so many calls can be in flight at once.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s6-1" value="c"> It signals priority &mdash; smaller ids are processed first.</label>
+        </fieldset>
+
+        <fieldset class="quiz-q" data-correct="a"
+          data-explain="The model proposes the call; the host enforces policy. Side-effectful calls (anything that mutates state) are gated behind explicit user approval in the host. The server just executes once it gets the request.">
+          <legend>2. At what point does the user actually approve the restart?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s6-2" value="a"> Inside the host, before step 6 &mdash; the host prompts the user and only then issues <code>tools/call</code>.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s6-2" value="b"> Inside the server, after step 7 &mdash; ClusterOps checks an ACL.</label>
+          <label class="quiz-opt"><input type="radio" name="q-s6-2" value="c"> There is no approval &mdash; MCP assumes the LLM&rsquo;s judgment is final.</label>
+        </fieldset>
+
+        <div class="quiz-actions">
+          <button type="button" class="btn primary" data-quiz-action="check">Check answers</button>
+          <button type="button" class="btn" data-quiz-action="reset">Reset</button>
+          <span class="quiz-summary" aria-live="polite"></span>
+        </div>
+      </form>
     </section>
 
     <section id="s7" class="chapter">
