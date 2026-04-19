@@ -2190,17 +2190,612 @@ if __name__ == "__main__":
 
     <section id="s8" class="chapter">
       <h2><span class="num">8.</span> Deployment topologies</h2>
-      <p class="todo-note">Content lands in Chapter 5 of the build.</p>
+
+      <p>
+        Once you have a working MCP server, where do you <em>put</em> it?
+        The protocol itself is transport-agnostic, but the deployment
+        shape &mdash; local subprocess, remote HTTP service, or a gateway
+        fronting many servers &mdash; determines your blast radius, your
+        scaling story, and your audit surface. Three topologies cover
+        almost every real deployment.
+      </p>
+
+      <h3>Topology A &mdash; local stdio</h3>
+
+      <p>
+        The host spawns the server as a child process on the same machine
+        and speaks JSON-RPC over stdin/stdout. No network, no auth, no
+        multi-tenancy. The OS user <em>is</em> the identity. This is where
+        your <code>disk_usage</code> server from &sect;7 lives, and where
+        Anthropic&rsquo;s filesystem and git MCPs live by default.
+      </p>
+
+      <p>
+        Good fit when: the tool needs resources only the laptop has
+        (local files, local kubeconfig, an IDE&rsquo;s open buffers), or
+        you&rsquo;re iterating on a tool and don&rsquo;t want to stand up
+        infrastructure for it.
+      </p>
+
+      <h3>Topology B &mdash; remote HTTP, one server per tool domain</h3>
+
+      <p>
+        The server runs as a long-lived HTTP service, reachable at a
+        single <code>/mcp</code> endpoint over Streamable HTTP. Clients
+        across many laptops share it. Auth happens per-request (&sect;9).
+        This is ClusterOps as a single Deployment behind a ClusterIP.
+      </p>
+
+      <p>
+        Good fit when: the underlying integration needs credentials that
+        shouldn&rsquo;t leave the datacenter (a kubeconfig with cluster-admin,
+        a database password, a Jira API token), or the tool needs to be
+        updated centrally rather than re-shipped to every laptop.
+      </p>
+
+      <h3>Topology C &mdash; gateway / federation</h3>
+
+      <p>
+        A gateway sits in front of <em>many</em> MCP servers and exposes
+        them to clients as one endpoint. It handles TLS, OAuth, rate
+        limiting, routing, and audit in one place; the MCP servers behind
+        it stay small and focused. This is the pattern every
+        larger-than-toy deployment converges on.
+      </p>
+
+      <p>
+        Good fit when: you have more than one MCP server, more than a
+        handful of users, or any requirement that says &ldquo;auth and
+        audit have to live in one place.&rdquo; In practice that is every
+        enterprise deployment.
+      </p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 760 340" role="img" aria-label="Three MCP deployment topologies: local stdio, remote HTTP, and gateway federation">
+          <defs>
+            <marker id="arr-s8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5aa9ff"/>
+            </marker>
+          </defs>
+
+          <text x="10" y="22" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="13" font-weight="600">A &mdash; local stdio (one laptop)</text>
+          <rect x="10" y="32" width="90" height="54" rx="8" fill="#1b212b" stroke="#3a4250"/>
+          <text x="55" y="56" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">Host</text>
+          <text x="55" y="72" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">laptop</text>
+          <line x1="100" y1="59" x2="135" y2="59" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s8)"/>
+          <text x="117" y="52" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="9" text-anchor="middle">stdio</text>
+          <rect x="135" y="32" width="110" height="54" rx="8" fill="#14281c" stroke="#3fb950"/>
+          <text x="190" y="56" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">filesystem</text>
+          <text x="190" y="72" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">MCP (subprocess)</text>
+
+          <text x="300" y="22" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="13" font-weight="600">B &mdash; remote HTTP (one server)</text>
+          <rect x="300" y="32" width="80" height="54" rx="8" fill="#1b212b" stroke="#3a4250"/>
+          <text x="340" y="56" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">Host</text>
+          <text x="340" y="72" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">laptop</text>
+          <line x1="380" y1="59" x2="430" y2="59" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s8)"/>
+          <text x="405" y="52" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="9" text-anchor="middle">HTTPS /mcp</text>
+          <rect x="430" y="32" width="140" height="54" rx="8" fill="#14281c" stroke="#3fb950"/>
+          <text x="500" y="56" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">ClusterOps MCP</text>
+          <text x="500" y="72" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">1 pod in-cluster</text>
+
+          <text x="10" y="130" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="13" font-weight="600">C &mdash; gateway / federation</text>
+          <rect x="10" y="148" width="90" height="54" rx="8" fill="#1b212b" stroke="#3a4250"/>
+          <text x="55" y="170" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">Host A</text>
+          <text x="55" y="186" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">SRE laptop</text>
+          <rect x="10" y="214" width="90" height="54" rx="8" fill="#1b212b" stroke="#3a4250"/>
+          <text x="55" y="236" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">Host B</text>
+          <text x="55" y="252" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">agent runner</text>
+
+          <line x1="100" y1="175" x2="235" y2="205" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s8)"/>
+          <line x1="100" y1="241" x2="235" y2="230" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s8)"/>
+
+          <rect x="235" y="180" width="150" height="80" rx="10" fill="#1e2736" stroke="#5aa9ff"/>
+          <text x="310" y="210" fill="#5aa9ff" font-family="ui-sans-serif, system-ui" font-size="14" text-anchor="middle" font-weight="700">Gateway</text>
+          <text x="310" y="228" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">TLS &middot; OAuth &middot; routing</text>
+          <text x="310" y="244" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">audit &middot; rate-limit</text>
+
+          <line x1="385" y1="200" x2="480" y2="168" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s8)"/>
+          <line x1="385" y1="220" x2="480" y2="220" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s8)"/>
+          <line x1="385" y1="240" x2="480" y2="272" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s8)"/>
+
+          <rect x="480" y="140" width="170" height="54" rx="8" fill="#14281c" stroke="#3fb950"/>
+          <text x="565" y="162" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">ClusterOps MCP</text>
+          <text x="565" y="178" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">list/restart/scale pods</text>
+
+          <rect x="480" y="194" width="170" height="54" rx="8" fill="#14281c" stroke="#3fb950"/>
+          <text x="565" y="216" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">postgres-readonly</text>
+          <text x="565" y="232" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">analytics DB queries</text>
+
+          <rect x="480" y="248" width="170" height="54" rx="8" fill="#14281c" stroke="#3fb950"/>
+          <text x="565" y="270" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">jira MCP</text>
+          <text x="565" y="286" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">tickets &middot; comments</text>
+
+          <text x="380" y="325" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="11" text-anchor="middle">One gateway, one auth story, many MCPs behind it.</text>
+        </svg>
+      </div>
+
+      <div class="callout callout-clusterops">
+        <div class="callout-title">In ClusterOps</div>
+        <p>
+          ClusterOps started as Topology B &mdash; one pod, one
+          <code>/mcp</code> endpoint, OAuth baked into the server itself.
+          Six months later the platform team added a
+          <code>postgres-readonly</code> MCP and a <code>jira</code> MCP,
+          and suddenly there were three OAuth integrations and three sets
+          of audit log shipping to maintain. The fix was Topology C:
+          deploy a gateway (they used <em>ContextForge</em>-style
+          federation), move OAuth to the edge, and let ClusterOps drop
+          its auth code entirely. The gateway advertises all three
+          servers&rsquo; tools to clients under one endpoint.
+        </p>
+      </div>
+
+      <div class="callout callout-wild">
+        <div class="callout-title">In the wild</div>
+        <p>
+          Cloudflare&rsquo;s hosted remote-MCP offering is Topology B at
+          SaaS scale: one public endpoint per product (Workers, R2, D1),
+          each speaking Streamable HTTP. Enterprises that run
+          &gt;5 MCP servers almost universally put an API gateway or a
+          dedicated MCP gateway (MCP-Gateway, ContextForge) in front &mdash;
+          Topology C &mdash; because otherwise every server grows its own
+          parallel copy of auth, logging, and rate-limiting code.
+        </p>
+      </div>
+
+      <form class="quiz" aria-label="Section 8 quiz">
+        <div class="quiz-head">Check yourself</div>
+        <p class="quiz-title">Two questions on &sect;8.</p>
+
+        <fieldset class="quiz-q" data-correct="c"
+          data-explain="A gateway centralises TLS, OAuth, routing, rate-limiting, and audit across many MCP servers. Individual servers stay focused on their domain logic; policy lives in one place. This is the pattern every multi-server deployment converges on.">
+          <legend>What problem does a gateway topology primarily solve?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s8-1" value="a"> Lower latency for tool calls</label>
+          <label class="quiz-opt"><input type="radio" name="q-s8-1" value="b"> Avoiding JSON-RPC serialization overhead</label>
+          <label class="quiz-opt"><input type="radio" name="q-s8-1" value="c"> Centralising auth, audit, and routing across many MCP servers</label>
+          <label class="quiz-opt"><input type="radio" name="q-s8-1" value="d"> Allowing servers to share memory</label>
+          <div class="quiz-feedback" aria-live="polite"></div>
+        </fieldset>
+
+        <fieldset class="quiz-q" data-correct="b"
+          data-explain="Local stdio is right when the tool needs resources only the laptop has &mdash; local files, an IDE&rsquo;s open buffers, the user&rsquo;s own kubeconfig. A shared kubeconfig for 30 SREs, a cluster-admin credential that must stay in the datacenter, and central updates all push you towards a remote/gateway topology.">
+          <legend>Which scenario is the best fit for local stdio (Topology A)?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s8-2" value="a"> 30 SREs sharing one cluster-admin kubeconfig</label>
+          <label class="quiz-opt"><input type="radio" name="q-s8-2" value="b"> A tool that reads the user&rsquo;s local git repository</label>
+          <label class="quiz-opt"><input type="radio" name="q-s8-2" value="c"> A tool that needs to be patched centrally without redeploying laptops</label>
+          <label class="quiz-opt"><input type="radio" name="q-s8-2" value="d"> A tool that exposes a shared production database</label>
+          <div class="quiz-feedback" aria-live="polite"></div>
+        </fieldset>
+
+        <div class="quiz-actions">
+          <button type="button" class="btn primary" data-quiz-action="check">Check answers</button>
+          <button type="button" class="btn" data-quiz-action="reset">Reset</button>
+          <span class="quiz-summary" aria-live="polite"></span>
+        </div>
+      </form>
     </section>
 
     <section id="s9" class="chapter">
       <h2><span class="num">9.</span> Authorization</h2>
-      <p class="todo-note">Content lands in Chapter 5 of the build.</p>
+
+      <p>
+        The moment an MCP server leaves a single laptop, you need to answer
+        two questions on every request: <em>who is this?</em> and
+        <em>what are they allowed to do?</em> MCP&rsquo;s answer is
+        <strong>OAuth 2.1 with PKCE</strong> &mdash; the same flow browsers
+        and mobile apps use &mdash; plus a small amount of MCP-specific
+        discovery so clients can find the right authorization server
+        without any hard-coded config.
+      </p>
+
+      <h3>The three MCP-specific pieces on top of OAuth 2.1</h3>
+
+      <p>
+        OAuth 2.1 gives you the bulk of the machinery. MCP adds three
+        conventions on top so a client that has never talked to your
+        server before can still complete the flow:
+      </p>
+
+      <ol>
+        <li>
+          <strong><code>WWW-Authenticate</code> on 401</strong> &mdash; an
+          unauth&rsquo;d request to <code>/mcp</code> returns
+          <code>HTTP&nbsp;401</code> with a <code>WWW-Authenticate</code>
+          header pointing the client at the resource metadata document.
+        </li>
+        <li>
+          <strong><code>/.well-known/oauth-protected-resource</code></strong>
+          &mdash; a JSON document at the resource&rsquo;s origin that lists
+          the <em>authorization server</em> the client should use and the
+          scopes this resource accepts. The client reads this and then
+          hands off to OAuth.
+        </li>
+        <li>
+          <strong>Dynamic Client Registration (DCR)</strong> &mdash; the
+          client can register itself with the authorization server at
+          first contact (<code>RFC&nbsp;7591</code>), so there&rsquo;s no
+          &ldquo;paste this client_id into your config&rdquo; step. Many
+          enterprise deployments disable DCR and pre-provision clients,
+          which is fine &mdash; it&rsquo;s an option, not a requirement.
+        </li>
+      </ol>
+
+      <h3>The flow, end to end</h3>
+
+      <div class="diagram">
+        <svg viewBox="0 0 780 360" role="img" aria-label="OAuth 2.1 PKCE flow between MCP client, MCP server, and authorization server">
+          <defs>
+            <marker id="arr-s9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5aa9ff"/>
+            </marker>
+          </defs>
+
+          <rect x="20" y="18" width="140" height="36" rx="8" fill="#1b212b" stroke="#3a4250"/>
+          <text x="90" y="41" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="13" text-anchor="middle" font-weight="600">MCP Client</text>
+
+          <rect x="320" y="18" width="140" height="36" rx="8" fill="#14281c" stroke="#3fb950"/>
+          <text x="390" y="41" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="13" text-anchor="middle" font-weight="600">MCP Server</text>
+
+          <rect x="620" y="18" width="140" height="36" rx="8" fill="#2a1d33" stroke="#a371f7"/>
+          <text x="690" y="41" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="13" text-anchor="middle" font-weight="600">Auth Server</text>
+
+          <line x1="90" y1="58" x2="90" y2="340" stroke="#3a4250" stroke-dasharray="3 3"/>
+          <line x1="390" y1="58" x2="390" y2="340" stroke="#3a4250" stroke-dasharray="3 3"/>
+          <line x1="690" y1="58" x2="690" y2="340" stroke="#3a4250" stroke-dasharray="3 3"/>
+
+          <line x1="90" y1="80" x2="390" y2="80" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s9)"/>
+          <text x="240" y="74" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="10" text-anchor="middle">1. POST /mcp (no token)</text>
+
+          <line x1="390" y1="104" x2="90" y2="104" stroke="#f85149" stroke-width="2" marker-end="url(#arr-s9)"/>
+          <text x="240" y="98" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="10" text-anchor="middle">2. 401 + WWW-Authenticate: resource_metadata=...</text>
+
+          <line x1="90" y1="128" x2="390" y2="128" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s9)"/>
+          <text x="240" y="122" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="10" text-anchor="middle">3. GET /.well-known/oauth-protected-resource</text>
+
+          <line x1="390" y1="152" x2="90" y2="152" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s9)"/>
+          <text x="240" y="146" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="10" text-anchor="middle">4. { authorization_servers, scopes_supported }</text>
+
+          <line x1="90" y1="180" x2="690" y2="180" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s9)"/>
+          <text x="390" y="174" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="10" text-anchor="middle">5. POST /register  (DCR, optional) &middot; 6. GET /authorize?code_challenge=...</text>
+
+          <line x1="690" y1="208" x2="90" y2="208" stroke="#a371f7" stroke-width="2" marker-end="url(#arr-s9)"/>
+          <text x="390" y="202" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="10" text-anchor="middle">7. browser login &rarr; redirect with ?code=...</text>
+
+          <line x1="90" y1="236" x2="690" y2="236" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s9)"/>
+          <text x="390" y="230" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="10" text-anchor="middle">8. POST /token (code + code_verifier)</text>
+
+          <line x1="690" y1="260" x2="90" y2="260" stroke="#a371f7" stroke-width="2" marker-end="url(#arr-s9)"/>
+          <text x="390" y="254" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="10" text-anchor="middle">9. { access_token, scope: "clusterops.read clusterops.write" }</text>
+
+          <line x1="90" y1="288" x2="390" y2="288" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s9)"/>
+          <text x="240" y="282" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="10" text-anchor="middle">10. POST /mcp  Authorization: Bearer ...</text>
+
+          <line x1="390" y1="312" x2="90" y2="312" stroke="#3fb950" stroke-width="2" marker-end="url(#arr-s9)"/>
+          <text x="240" y="306" fill="#9aa3af" font-family="ui-mono, Menlo, monospace" font-size="10" text-anchor="middle">11. 200  { jsonrpc, result: ... }</text>
+
+          <text x="390" y="350" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="11" text-anchor="middle">PKCE = code_challenge/code_verifier prove the client that started the flow is the one redeeming the code.</text>
+        </svg>
+      </div>
+
+      <h3>Scopes and token shape</h3>
+
+      <p>
+        Tokens are opaque bearer tokens (or JWTs &mdash; MCP doesn&rsquo;t
+        prescribe). The <em>scopes</em> in the token decide which tools
+        the user can call. A common split for a server like ClusterOps is
+        one scope per risk tier:
+      </p>
+
+      <pre><code>clusterops.read    &rarr; list_pods, get_logs, describe_*
+clusterops.write   &rarr; restart_deployment, scale_deployment
+clusterops.admin   &rarr; delete_*, drain_node, cordon_node</code></pre>
+
+      <p>
+        The server enforces scopes on each <code>tools/call</code>. A
+        <code>tools/list</code> response can also be filtered by scope, so
+        a junior SRE simply doesn&rsquo;t see tools they can&rsquo;t use
+        &mdash; which is both a safety property and a UX win (the model
+        won&rsquo;t try to call a tool it never learned about).
+      </p>
+
+      <div class="callout callout-clusterops">
+        <div class="callout-title">In ClusterOps</div>
+        <p>
+          ClusterOps&rsquo;s gateway is configured so an unauth&rsquo;d
+          <code>POST&nbsp;/mcp</code> returns <code>401</code> with a
+          <code>WWW-Authenticate</code> pointing at
+          <code>https://clusterops.internal.bank/.well-known/oauth-protected-resource</code>.
+          That document names the bank&rsquo;s internal
+          <strong>Keycloak</strong> realm as the authorization server.
+          Access tokens are JWTs signed by Keycloak; the gateway verifies
+          the signature, extracts <code>scope</code> and <code>sub</code>,
+          and forwards them to ClusterOps as trusted headers.
+          A junior SRE&rsquo;s token carries <code>clusterops.read</code>
+          only &mdash; they can ask the model to investigate, but
+          <code>restart_deployment</code> simply doesn&rsquo;t appear in
+          <code>tools/list</code>. A senior SRE&rsquo;s token carries
+          <code>clusterops.write</code> and sees the full toolset.
+        </p>
+      </div>
+
+      <div class="callout callout-note">
+        <div class="callout-title">Two easy mistakes</div>
+        <ul>
+          <li>
+            <strong>Audience confusion.</strong> A token issued for MCP
+            server A must not be accepted by MCP server B. Always check
+            the <code>aud</code> claim (or resource indicator) on
+            validation.
+          </li>
+          <li>
+            <strong>Token passthrough.</strong> The model must never see
+            or reason about the access token itself. It belongs to the
+            host/client and the server, not to the sampling loop.
+          </li>
+        </ul>
+      </div>
+
+      <form class="quiz" aria-label="Section 9 quiz">
+        <div class="quiz-head">Check yourself</div>
+        <p class="quiz-title">Two questions on &sect;9.</p>
+
+        <fieldset class="quiz-q" data-correct="b"
+          data-explain="The .well-known/oauth-protected-resource document is how the client discovers which authorization server to talk to without any hard-coded config. The WWW-Authenticate header on the 401 points to it; the client reads it and then runs the normal OAuth 2.1 flow.">
+          <legend>How does an MCP client discover which authorization server to use?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s9-1" value="a"> It&rsquo;s hard-coded in the MCP spec</label>
+          <label class="quiz-opt"><input type="radio" name="q-s9-1" value="b"> It reads <code>/.well-known/oauth-protected-resource</code> on the MCP server&rsquo;s origin</label>
+          <label class="quiz-opt"><input type="radio" name="q-s9-1" value="c"> The server embeds the auth URL in every <code>tools/list</code> response</label>
+          <label class="quiz-opt"><input type="radio" name="q-s9-1" value="d"> The user types it into a config file</label>
+          <div class="quiz-feedback" aria-live="polite"></div>
+        </fieldset>
+
+        <fieldset class="quiz-q" data-correct="c"
+          data-explain="Filtering tools/list by scope means the model literally never learns a tool exists if the user isn&rsquo;t allowed to call it. That&rsquo;s both a safety property (no accidental invocation) and a UX win (the model doesn&rsquo;t promise to do things it can&rsquo;t). Scope enforcement on tools/call is still required &mdash; defence in depth &mdash; but scoping discovery matters too.">
+          <legend>Why filter <code>tools/list</code> responses by the caller&rsquo;s scopes?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s9-2" value="a"> To reduce JSON payload size</label>
+          <label class="quiz-opt"><input type="radio" name="q-s9-2" value="b"> OAuth 2.1 requires it</label>
+          <label class="quiz-opt"><input type="radio" name="q-s9-2" value="c"> So the model never reasons about a tool the user can&rsquo;t actually call</label>
+          <label class="quiz-opt"><input type="radio" name="q-s9-2" value="d"> To keep the tool schema cached on the client</label>
+          <div class="quiz-feedback" aria-live="polite"></div>
+        </fieldset>
+
+        <div class="quiz-actions">
+          <button type="button" class="btn primary" data-quiz-action="check">Check answers</button>
+          <button type="button" class="btn" data-quiz-action="reset">Reset</button>
+          <span class="quiz-summary" aria-live="polite"></span>
+        </div>
+      </form>
     </section>
 
     <section id="s10" class="chapter">
       <h2><span class="num">10.</span> Airgapped deployments</h2>
-      <p class="todo-note">Content lands in Chapter 5 of the build.</p>
+
+      <p>
+        Nothing in MCP assumes the public internet. The protocol is
+        transport-agnostic, the auth story uses <em>your</em>
+        authorization server, and servers can be pulled from a local
+        registry. What airgapped deployment actually requires is the
+        discipline to name every external dependency your server has and
+        mirror it inside the perimeter. Here&rsquo;s the list, and the
+        topology that falls out of it.
+      </p>
+
+      <h3>What needs to move inside the perimeter</h3>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>External dependency</th>
+            <th>Airgapped replacement</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Public container registries (Docker Hub, GHCR)</td>
+            <td>Internal registry (Harbor, Artifactory, ECR&nbsp;on-prem)</td>
+          </tr>
+          <tr>
+            <td>Public MCP registry at <code>registry.modelcontextprotocol.io</code></td>
+            <td>Seeded internal registry; point clients via
+              <code>MCP_REGISTRY_SEED_FROM=https://mcp.internal/registry.json</code></td>
+          </tr>
+          <tr>
+            <td>Public OAuth providers (Auth0, Okta Cloud)</td>
+            <td>Internal IdP (Keycloak, on-prem Okta, AD FS)</td>
+          </tr>
+          <tr>
+            <td>Model APIs (<code>api.anthropic.com</code>, OpenAI)</td>
+            <td>On-prem inference (vLLM, TGI, internal gateway) or a model running in the same VPC</td>
+          </tr>
+          <tr>
+            <td>Secrets in environment variables</td>
+            <td>Vault / sealed-secrets with short-lived leases</td>
+          </tr>
+          <tr>
+            <td>Public PyPI / npm</td>
+            <td>Internal mirror (devpi, Verdaccio, Nexus)</td>
+          </tr>
+          <tr>
+            <td>Outbound DNS / NTP</td>
+            <td>Internal resolvers, internal NTP; egress
+              <code>NetworkPolicy: deny-all</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>The resulting topology</h3>
+
+      <div class="diagram">
+        <svg viewBox="0 0 800 380" role="img" aria-label="Airgapped MCP topology with SRE laptop, internal LLM, gateway, ClusterOps, Keycloak, Vault, and no egress">
+          <defs>
+            <marker id="arr-s10" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5aa9ff"/>
+            </marker>
+          </defs>
+
+          <rect x="20" y="20" width="760" height="310" rx="14" fill="#0f1a14" stroke="#3fb950" stroke-dasharray="6 4"/>
+          <text x="40" y="44" fill="#3fb950" font-family="ui-sans-serif, system-ui" font-size="13" font-weight="700">Internal VPC &mdash; no egress</text>
+
+          <rect x="40" y="70" width="130" height="60" rx="8" fill="#1b212b" stroke="#3a4250"/>
+          <text x="105" y="94" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">SRE laptop</text>
+          <text x="105" y="110" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">internal chat UI</text>
+          <text x="105" y="124" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">(the Host)</text>
+
+          <rect x="210" y="70" width="140" height="60" rx="8" fill="#1b212b" stroke="#3a4250"/>
+          <text x="280" y="94" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">Internal LLM</text>
+          <text x="280" y="110" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">vLLM / TGI</text>
+          <text x="280" y="124" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">(the Client)</text>
+
+          <rect x="390" y="70" width="150" height="60" rx="8" fill="#1e2736" stroke="#5aa9ff"/>
+          <text x="465" y="94" fill="#5aa9ff" font-family="ui-sans-serif, system-ui" font-size="13" text-anchor="middle" font-weight="700">Gateway</text>
+          <text x="465" y="110" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">OAuth verify, routing,</text>
+          <text x="465" y="124" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">audit, rate-limit</text>
+
+          <rect x="580" y="70" width="180" height="60" rx="8" fill="#14281c" stroke="#3fb950"/>
+          <text x="670" y="94" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">ClusterOps MCP</text>
+          <text x="670" y="110" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">talks to in-cluster</text>
+          <text x="670" y="124" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">kube-apiserver</text>
+
+          <line x1="170" y1="100" x2="210" y2="100" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s10)"/>
+          <line x1="350" y1="100" x2="390" y2="100" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s10)"/>
+          <line x1="540" y1="100" x2="580" y2="100" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s10)"/>
+
+          <rect x="210" y="170" width="140" height="54" rx="8" fill="#2a1d33" stroke="#a371f7"/>
+          <text x="280" y="193" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">Keycloak</text>
+          <text x="280" y="210" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">internal IdP</text>
+
+          <rect x="390" y="170" width="150" height="54" rx="8" fill="#2a2318" stroke="#d29922"/>
+          <text x="465" y="193" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">Vault</text>
+          <text x="465" y="210" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">short-lived leases</text>
+
+          <rect x="580" y="170" width="180" height="54" rx="8" fill="#1b212b" stroke="#3a4250"/>
+          <text x="670" y="193" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">Internal registries</text>
+          <text x="670" y="210" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">containers &middot; MCP registry &middot; PyPI mirror</text>
+
+          <line x1="465" y1="130" x2="280" y2="170" stroke="#a371f7" stroke-width="1.5" stroke-dasharray="3 3"/>
+          <line x1="670" y1="130" x2="465" y2="170" stroke="#d29922" stroke-width="1.5" stroke-dasharray="3 3"/>
+          <line x1="670" y1="130" x2="670" y2="170" stroke="#5aa9ff" stroke-width="1.5" stroke-dasharray="3 3"/>
+
+          <rect x="210" y="250" width="550" height="54" rx="8" fill="#1b212b" stroke="#3a4250"/>
+          <text x="485" y="273" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="12" text-anchor="middle">kube-apiserver (same cluster)</text>
+          <text x="485" y="290" fill="#9aa3af" font-family="ui-sans-serif, system-ui" font-size="10" text-anchor="middle">RBAC scopes what ClusterOps&rsquo;s ServiceAccount can actually do</text>
+
+          <line x1="670" y1="224" x2="670" y2="250" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-s10)"/>
+
+          <path d="M20 360 L780 360" stroke="#f85149" stroke-width="2" stroke-dasharray="6 4" fill="none"/>
+          <text x="400" y="352" fill="#f85149" font-family="ui-sans-serif, system-ui" font-size="11" text-anchor="middle">
+            egress NetworkPolicy: deny-all &mdash; nothing crosses this line
+          </text>
+        </svg>
+      </div>
+
+      <h3>The registry seed</h3>
+
+      <p>
+        MCP clients discover servers through an <strong>MCP
+        registry</strong>. In an airgapped build you don&rsquo;t want
+        clients reaching for <code>registry.modelcontextprotocol.io</code>.
+        Seed an internal registry from a static manifest baked into the
+        cluster:
+      </p>
+
+      <pre><code># env for the MCP host / client
+MCP_REGISTRY_SEED_FROM=https://mcp.internal.bank/registry.json
+MCP_REGISTRY_DISABLE_PUBLIC=true</code></pre>
+
+      <p>
+        The manifest is a plain list of servers, their endpoints, and
+        their advertised capabilities. Platform engineers own it the same
+        way they own a Helm chart repo.
+      </p>
+
+      <h3>Zero-egress network policy</h3>
+
+      <p>
+        The cheapest proof that a deployment is airgapped is a default-deny
+        egress policy. In Kubernetes:
+      </p>
+
+      <pre><code>apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp-no-egress
+  namespace: clusterops
+spec:
+  podSelector: { matchLabels: { app: clusterops-mcp } }
+  policyTypes: [Egress]
+  egress:
+  - to:
+    - namespaceSelector: { matchLabels: { name: kube-system } }   # apiserver
+    - namespaceSelector: { matchLabels: { name: platform-auth } } # Keycloak
+    - namespaceSelector: { matchLabels: { name: platform-vault } }
+    ports:
+    - { protocol: TCP, port: 443 }</code></pre>
+
+      <p>
+        If ClusterOps needs anything the policy doesn&rsquo;t list, the
+        connection fails closed. That&rsquo;s the whole point. Any new
+        dependency becomes a visible review step, not a silent call to the
+        public internet.
+      </p>
+
+      <div class="callout callout-clusterops">
+        <div class="callout-title">In ClusterOps</div>
+        <p>
+          Everything the bank&rsquo;s SREs touch lives inside one VPC.
+          Laptops reach an internal chat UI; the chat UI reaches an
+          internal LLM runtime; the LLM acts as the MCP client and talks
+          to the gateway; the gateway verifies Keycloak-signed JWTs and
+          forwards to ClusterOps; ClusterOps talks to the
+          <code>kube-apiserver</code> of the same cluster it runs in. No
+          DNS query ever leaves. The weekly security scan&rsquo;s
+          egress-flow report shows a flat zero outside the VPC &mdash;
+          which is what the bank&rsquo;s regulator actually asks for.
+        </p>
+      </div>
+
+      <div class="callout callout-wild">
+        <div class="callout-title">In the wild</div>
+        <p>
+          Anthropic publishes an offline-ready Docker image of its
+          reference MCP servers so regulated customers can mirror them
+          into internal registries without ever pulling from Docker Hub at
+          runtime. Similar patterns exist for the filesystem, git, and
+          Postgres reference servers &mdash; the source code is public,
+          and the build artifact is designed to be mirrored.
+        </p>
+      </div>
+
+      <form class="quiz" aria-label="Section 10 quiz">
+        <div class="quiz-head">Check yourself</div>
+        <p class="quiz-title">Two questions on &sect;10.</p>
+
+        <fieldset class="quiz-q" data-correct="c"
+          data-explain="A default-deny egress NetworkPolicy is the cheapest mechanical proof that nothing leaves the perimeter. You explicitly allow only the internal dependencies the server needs (apiserver, Keycloak, Vault). Anything else fails closed &mdash; which turns every new external dependency into a visible review step instead of a silent outbound call.">
+          <legend>What&rsquo;s the most effective way to <em>prove</em> an MCP deployment is airgapped?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s10-1" value="a"> Disable public DNS resolution in the host OS</label>
+          <label class="quiz-opt"><input type="radio" name="q-s10-1" value="b"> Mirror public container registries internally</label>
+          <label class="quiz-opt"><input type="radio" name="q-s10-1" value="c"> A default-deny egress NetworkPolicy with an allowlist of internal services</label>
+          <label class="quiz-opt"><input type="radio" name="q-s10-1" value="d"> Run all MCP servers as root inside the cluster</label>
+          <div class="quiz-feedback" aria-live="polite"></div>
+        </fieldset>
+
+        <fieldset class="quiz-q" data-correct="b"
+          data-explain="Seeding an internal MCP registry (and disabling the public one) gives clients a single, approved catalogue of servers they&rsquo;re allowed to use. It&rsquo;s the discovery equivalent of mirroring a container registry &mdash; platform engineers own the list the same way they own a Helm chart repo.">
+          <legend>Why seed an internal MCP registry instead of pointing clients at the public one?</legend>
+          <label class="quiz-opt"><input type="radio" name="q-s10-2" value="a"> The public registry charges per lookup</label>
+          <label class="quiz-opt"><input type="radio" name="q-s10-2" value="b"> To give clients a single, approved catalogue of servers they&rsquo;re allowed to use</label>
+          <label class="quiz-opt"><input type="radio" name="q-s10-2" value="c"> The public registry only supports stdio transport</label>
+          <label class="quiz-opt"><input type="radio" name="q-s10-2" value="d"> MCP requires each server to register itself at start-up</label>
+          <div class="quiz-feedback" aria-live="polite"></div>
+        </fieldset>
+
+        <div class="quiz-actions">
+          <button type="button" class="btn primary" data-quiz-action="check">Check answers</button>
+          <button type="button" class="btn" data-quiz-action="reset">Reset</button>
+          <span class="quiz-summary" aria-live="polite"></span>
+        </div>
+      </form>
     </section>
 
     <section id="s11" class="chapter">
