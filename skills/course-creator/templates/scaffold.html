@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{COURSE TITLE}} — A {{AUDIENCE}} Course</title>
+<style>
+/* ---------- reset + base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden; /* slide mode: main column scrolls, page does not */
+}
+
+/* ---------- palette ---------- */
+:root {
+  --bg: #0f1217;
+  --surface: #171b22;
+  --surface-2: #1f2430;
+  --border: #2a303c;
+  --border-strong: #3a4150;
+  --text: #e6e6e6;
+  --text-muted: #9aa4b2;
+  --text-dim: #6b7280;
+  --accent: #5aa9ff;
+  --accent-dim: #2a5a92;
+  --success: #3fb950;
+  --warn: #d29922;
+  --danger: #f85149;
+  --code-bg: #0b0e13;
+  --shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.25);
+}
+
+/* ---------- typography ---------- */
+h1, h2, h3, h4 { color: var(--text); font-weight: 650; letter-spacing: -0.01em; line-height: 1.25; }
+h1 { font-size: 2.1rem; margin: 0 0 0.4rem; }
+h2 {
+  font-size: 1.55rem; margin: 3.5rem 0 1rem;
+  padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+  scroll-margin-top: 1.5rem;
+}
+h2 .num { color: var(--text-muted); font-weight: 500; margin-right: 0.5rem; }
+h3 { font-size: 1.1rem; margin: 2rem 0 0.5rem; color: var(--text); }
+h4 { font-size: 0.95rem; margin: 1.25rem 0 0.4rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+p { margin: 0.75rem 0; }
+.lede { font-size: 1.05rem; color: var(--text-muted); max-width: 62ch; }
+.eyebrow {
+  display: inline-block; margin: 0 0 0.5rem;
+  padding: 0.15rem 0.6rem; font-size: 0.75rem;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent); background: rgba(90, 169, 255, 0.08);
+  border: 1px solid var(--accent-dim); border-radius: 999px;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, kbd, samp, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 0.9em; }
+p code, li code { background: var(--code-bg); border: 1px solid var(--border); padding: 0.05em 0.35em; border-radius: 4px; color: #c9d6e6; }
+pre {
+  background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.9rem 1rem; overflow-x: auto;
+  font-size: 0.85rem; line-height: 1.55; color: #c9d6e6; margin: 1rem 0;
+}
+hr { border: 0; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+
+/* ---------- layout ---------- */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: 2.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0;
+  height: 100vh;
+  height: 100dvh;
+}
+.toc {
+  align-self: stretch;
+  height: 100vh; height: 100dvh;
+  overflow-y: auto;
+  font-size: 0.9rem;
+  border-right: 1px solid var(--border);
+  padding: 2rem 1.25rem 2rem 2rem;
+}
+.toc-head { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.75rem; }
+.toc ol { list-style: none; margin: 0; padding: 0; }
+.toc li { margin: 0; }
+.toc a {
+  display: block; padding: 0.35rem 0.6rem;
+  color: var(--text-muted);
+  border-left: 2px solid transparent;
+  border-radius: 0 4px 4px 0;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.toc a:hover { color: var(--text); background: var(--surface); text-decoration: none; }
+.toc a.active, .toc li.current > a {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: rgba(90, 169, 255, 0.06);
+  font-weight: 600;
+}
+.toc li.done > a { color: var(--text); }
+.toc li.done > a::after {
+  content: "\2713"; color: var(--success);
+  float: right; margin-left: 0.5rem; font-weight: 600;
+}
+
+main {
+  min-width: 0;
+  height: 100vh; height: 100dvh;
+  overflow-y: auto;
+  padding: 2rem 2rem 6rem;
+  scroll-behavior: smooth;
+}
+main > * { max-width: 72ch; margin-left: auto; margin-right: auto; }
+
+.skip-link { position: absolute; left: -9999px; top: auto; }
+.skip-link:focus { left: 1rem; top: 1rem; background: var(--accent); color: var(--bg); padding: 0.5rem 0.75rem; border-radius: 4px; z-index: 10; }
+
+/* ---------- header + footer ---------- */
+.page-head { margin-bottom: 1rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+.meta-row { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-top: 1rem; font-size: 0.82rem; color: var(--text-dim); }
+.meta-row span strong { color: var(--text-muted); font-weight: 600; }
+.page-foot { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--text-dim); }
+.page-head, .page-foot { display: none; }
+.page-head.active, .page-foot.active { display: block; }
+
+/* ---------- callouts ---------- */
+.callout {
+  margin: 1.25rem 0; padding: 1rem 1.15rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+}
+.callout .callout-title {
+  font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 0.5rem; font-weight: 600;
+}
+.callout p:first-of-type { margin-top: 0; }
+.callout p:last-of-type { margin-bottom: 0; }
+
+.callout-running {
+  background: linear-gradient(180deg, rgba(90,169,255,0.06), rgba(90,169,255,0.02));
+  border-left-width: 4px;
+}
+.callout-example { border-left-color: var(--success); }
+.callout-example .callout-title { color: var(--success); }
+.callout-wild { border-left-color: var(--warn); }
+.callout-wild .callout-title { color: var(--warn); }
+.callout-note { border-left-color: var(--text-muted); }
+.callout-note .callout-title { color: var(--text-muted); }
+
+/* ---------- chapter sections (slide mode) ---------- */
+.chapter { display: none; padding-top: 1rem; }
+.chapter.active { display: block; }
+.chapter > h2:first-child { margin-top: 0.5rem; }
+
+/* ---------- tables ---------- */
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-muted); font-weight: 600; }
+
+/* ---------- diagrams ---------- */
+.diagram {
+  margin: 1.25rem 0; padding: 0.75rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+}
+.diagram svg { display: block; max-width: 100%; height: auto; }
+.diagram figcaption { font-size: 0.82rem; color: var(--text-dim); text-align: center; margin-top: 0.5rem; }
+
+/* ---------- quizzes ---------- */
+.quiz {
+  margin: 2rem 0 1rem; padding: 1.25rem 1.5rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.quiz-head { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin-bottom: 0.25rem; }
+.quiz-title { margin: 0 0 1rem; color: var(--text-muted); font-size: 0.95rem; }
+.quiz-q { border: 0; padding: 1rem 0; margin: 0; border-top: 1px solid var(--border); }
+.quiz-q:first-of-type { border-top: 0; padding-top: 0; }
+.quiz-q legend { font-weight: 600; padding: 0; margin-bottom: 0.5rem; color: var(--text); }
+.quiz-opt {
+  display: block; padding: 0.4rem 0.6rem; margin: 0.25rem 0;
+  border: 1px solid transparent; border-radius: 6px; cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.quiz-opt:hover { background: var(--surface-2); }
+.quiz-opt input { margin-right: 0.5rem; }
+.quiz-opt.selected { border-color: var(--accent-dim); background: rgba(90,169,255,0.06); }
+.quiz-opt.answer { background: rgba(63,185,80,0.10); border-color: rgba(63,185,80,0.4); }
+.quiz-q.correct .quiz-opt.selected { border-color: var(--success); background: rgba(63,185,80,0.12); }
+.quiz-q.incorrect .quiz-opt.selected { border-color: var(--danger); background: rgba(248,81,73,0.12); }
+.quiz-feedback {
+  margin-top: 0.6rem; padding: 0.6rem 0.75rem; font-size: 0.9rem;
+  background: var(--code-bg); border-left: 3px solid var(--accent); border-radius: 4px;
+}
+.quiz-feedback[hidden] { display: none; }
+.quiz-feedback .label { display: block; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.25rem; color: var(--accent); }
+.quiz-q.correct .quiz-feedback { border-left-color: var(--success); }
+.quiz-q.correct .quiz-feedback .label { color: var(--success); }
+.quiz-q.incorrect .quiz-feedback { border-left-color: var(--danger); }
+.quiz-q.incorrect .quiz-feedback .label { color: var(--danger); }
+.quiz-actions { margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+
+/* ---------- buttons ---------- */
+.btn {
+  font: inherit; cursor: pointer; padding: 0.5rem 1rem; border-radius: 6px;
+  border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text);
+  transition: background 0.1s, border-color 0.1s;
+}
+.btn:hover { background: var(--border); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #0a1220; font-weight: 600; }
+.btn.primary:hover { background: #7ab8ff; border-color: #7ab8ff; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.quiz-summary { margin-top: 0.75rem; font-size: 0.9rem; color: var(--text-muted); }
+
+/* ---------- slide nav bar ---------- */
+.slide-nav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center; gap: 1rem;
+  padding: 0.6rem 1rem;
+  background: rgba(15, 18, 23, 0.88);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  border-top: 1px solid var(--border);
+}
+.slide-nav .progress { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 0.85rem; min-width: 5rem; text-align: center; }
+.slide-nav .btn[disabled] { opacity: 0.4; cursor: not-allowed; background: var(--surface); }
+.slide-nav .btn[disabled]:hover { background: var(--surface); }
+.slide-nav .hint { font-size: 0.78rem; color: var(--text-dim); margin-left: 0.75rem; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; gap: 0; padding: 0; height: 100vh; height: 100dvh; }
+  .toc { height: auto; max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; }
+  .toc ol { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .toc a { padding: 0.3rem 0.55rem; }
+  .toc li.done > a::after { margin-left: 0.3rem; float: none; }
+  h1 { font-size: 1.55rem; }
+  h2 { font-size: 1.3rem; margin-top: 1.5rem; }
+  main { padding: 1rem 1rem 5rem; }
+  main > * { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<div class="layout">
+  <aside class="toc" aria-label="Table of contents">
+    <div class="toc-head">Contents</div>
+    <ol>
+      <!-- Add one <li> per section. Keep href ids in sync with section ids. -->
+      <li><a href="#s1">1. {{Section 1 title}}</a></li>
+      <li><a href="#s2">2. {{Section 2 title}}</a></li>
+      <!-- ... up to s10 or s12 ... -->
+    </ol>
+  </aside>
+
+  <main id="main">
+
+    <header class="page-head">
+      <p class="eyebrow">{{Audience}} Course</p>
+      <h1>{{Course title}}</h1>
+      <p class="lede">{{One-sentence elevator pitch.}}</p>
+
+      <div class="callout callout-running">
+        <div class="callout-title">Running example &mdash; {{name}}</div>
+        <p>
+          {{One paragraph describing the concrete scenario you'll thread through every section.
+          Make it specific: who uses it, why, what it does, what constraints it operates under.}}
+        </p>
+      </div>
+
+      <div class="meta-row">
+        <span><strong>Source:</strong> {{Spec / book / docs and version}}</span>
+        <span><strong>Format:</strong> Self-contained &middot; airgap-safe &middot; no external requests</span>
+      </div>
+    </header>
+
+    <!-- Section shells. Fill one chapter at a time. -->
+
+    <section id="s1" class="chapter">
+      <h2><span class="num">1.</span> {{Section 1 title}}</h2>
+      <!-- body + diagrams + callouts + quiz here -->
+    </section>
+
+    <section id="s2" class="chapter">
+      <h2><span class="num">2.</span> {{Section 2 title}}</h2>
+    </section>
+
+    <!-- ... s3 through last ... -->
+
+    <footer class="page-foot">
+      <p>
+        Based on {{source}}.
+        This page is fully self-contained &mdash; no external fonts, scripts, or images.
+        It renders correctly on an airgapped laptop.
+      </p>
+    </footer>
+
+  </main>
+</div>
+
+<nav class="slide-nav" aria-label="Slide navigation">
+  <button type="button" class="btn" id="prev-slide" title="Previous slide (&larr;)">&larr; Prev</button>
+  <span class="progress" id="slide-progress" aria-live="polite">1 / 12</span>
+  <button type="button" class="btn primary" id="next-slide" title="Next slide (&rarr;)">Next &rarr;</button>
+  <span class="hint" id="slide-hint"></span>
+</nav>
+
+<script>
+// ---------- quiz helpers ----------
+// Each <form class="quiz"> contains one or more <fieldset class="quiz-q"
+// data-correct="X" data-explain="..."> with radio inputs.
+(function () {
+  'use strict';
+
+  function checkQuiz(form) {
+    var questions = form.querySelectorAll('.quiz-q');
+    var total = questions.length, correct = 0;
+
+    questions.forEach(function (q) {
+      var selected = q.querySelector('input[type=radio]:checked');
+      q.classList.remove('correct', 'incorrect');
+      q.querySelectorAll('.quiz-opt').forEach(function (l) {
+        l.classList.remove('selected', 'answer');
+      });
+
+      var answer = q.getAttribute('data-correct');
+      var answerInput = q.querySelector('input[value="' + answer + '"]');
+      if (answerInput && answerInput.closest('.quiz-opt')) {
+        answerInput.closest('.quiz-opt').classList.add('answer');
+      }
+
+      if (!selected) {
+        q.classList.add('incorrect');
+        showFeedback(q, false, 'No answer selected.');
+        return;
+      }
+      selected.closest('.quiz-opt').classList.add('selected');
+      var isRight = selected.value === answer;
+      if (isRight) correct += 1;
+      q.classList.add(isRight ? 'correct' : 'incorrect');
+      showFeedback(q, isRight, q.getAttribute('data-explain') || '');
+    });
+
+    var summary = form.querySelector('.quiz-summary');
+    if (summary) summary.textContent = 'Score: ' + correct + ' / ' + total;
+  }
+
+  function showFeedback(q, ok, explain) {
+    var fb = q.querySelector('.quiz-feedback');
+    if (!fb) { fb = document.createElement('div'); fb.className = 'quiz-feedback'; q.appendChild(fb); }
+    fb.hidden = false;
+    fb.innerHTML = '<span class="label">' + (ok ? 'Correct' : 'Not quite') + '</span>' + (explain || '');
+  }
+
+  function resetQuiz(form) {
+    form.querySelectorAll('.quiz-q').forEach(function (q) {
+      q.classList.remove('correct', 'incorrect');
+      q.querySelectorAll('.quiz-opt').forEach(function (l) { l.classList.remove('selected', 'answer'); });
+      q.querySelectorAll('input[type=radio]').forEach(function (r) { r.checked = false; });
+      var fb = q.querySelector('.quiz-feedback');
+      if (fb) { fb.hidden = true; fb.innerHTML = ''; }
+    });
+    var summary = form.querySelector('.quiz-summary');
+    if (summary) summary.textContent = '';
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-quiz-action]');
+    if (!btn) return;
+    var form = btn.closest('form.quiz');
+    if (!form) return;
+    e.preventDefault();
+    var action = btn.getAttribute('data-quiz-action');
+    if (action === 'check') checkQuiz(form);
+    else if (action === 'reset') resetQuiz(form);
+  });
+
+  window.checkQuiz = checkQuiz;
+  window.resetQuiz = resetQuiz;
+})();
+
+// ---------- slide controller ----------
+// One section visible at a time. Next is gated on scroll-to-bottom of
+// the current slide. ToC highlights current, checkmarks completed, and
+// allows free jumping. Keyboard arrows drive prev/next.
+(function () {
+  'use strict';
+
+  var slides = Array.prototype.slice.call(document.querySelectorAll('section.chapter'));
+  if (!slides.length) return;
+  var last = slides.length - 1;
+
+  var main = document.getElementById('main');
+  var prevBtn = document.getElementById('prev-slide');
+  var nextBtn = document.getElementById('next-slide');
+  var progress = document.getElementById('slide-progress');
+  var hint = document.getElementById('slide-hint');
+  var pageHead = document.querySelector('.page-head');
+  var pageFoot = document.querySelector('.page-foot');
+
+  var tocLinks = Array.prototype.slice.call(document.querySelectorAll('.toc a[href^="#s"]'));
+  var tocById = {};
+  tocLinks.forEach(function (a) { tocById[a.getAttribute('href').slice(1)] = a; });
+
+  var idx = 0;
+  var unlocked = Object.create(null);
+  var done = Object.create(null);
+
+  function indexFromHash() {
+    var h = (location.hash || '').replace('#', '');
+    for (var i = 0; i < slides.length; i++) if (slides[i].id === h) return i;
+    return 0;
+  }
+
+  function updateChrome() {
+    if (progress) progress.textContent = (idx + 1) + ' / ' + slides.length;
+    if (prevBtn) prevBtn.disabled = (idx === 0);
+    if (nextBtn) {
+      var canAdvance = !!unlocked[idx] && idx < last;
+      nextBtn.disabled = !canAdvance;
+      nextBtn.setAttribute('title',
+        canAdvance ? 'Next slide (→)' :
+        idx === last ? 'End of course' :
+        'Scroll to the end of this slide to continue');
+    }
+    if (hint) {
+      hint.textContent =
+        idx === last ? 'End of course.' :
+        unlocked[idx] ? '' :
+        'Scroll to the end to continue ↓';
+    }
+    tocLinks.forEach(function (a) {
+      a.parentElement.classList.remove('current');
+      a.removeAttribute('aria-current');
+    });
+    var curA = tocById[slides[idx].id];
+    if (curA) { curA.parentElement.classList.add('current'); curA.setAttribute('aria-current', 'step'); }
+    for (var i in done) {
+      var a = tocById[slides[i].id];
+      if (a) a.parentElement.classList.add('done');
+    }
+    if (pageHead) pageHead.classList.toggle('active', idx === 0);
+    if (pageFoot) pageFoot.classList.toggle('active', idx === last);
+    slides.forEach(function (s, i) {
+      if (i === idx) {
+        s.classList.add('active'); s.removeAttribute('aria-hidden'); s.removeAttribute('tabindex');
+      } else {
+        s.classList.remove('active'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('tabindex', '-1');
+      }
+    });
+  }
+
+  function checkUnlock() {
+    if (!main) return;
+    var atBottom = (main.scrollTop + main.clientHeight) >= (main.scrollHeight - 8);
+    if (atBottom && !unlocked[idx]) {
+      unlocked[idx] = true; done[idx] = true; updateChrome();
+    }
+  }
+
+  function showSlide(i) {
+    if (i < 0) i = 0;
+    if (i > last) i = last;
+    idx = i;
+    updateChrome();
+    if (main) main.scrollTop = 0;
+    try { history.replaceState(null, '', '#' + slides[idx].id); }
+    catch (e) { location.hash = '#' + slides[idx].id; }
+    setTimeout(checkUnlock, 60);
+  }
+
+  if (prevBtn) prevBtn.addEventListener('click', function () { if (!prevBtn.disabled) showSlide(idx - 1); });
+  if (nextBtn) nextBtn.addEventListener('click', function () { if (!nextBtn.disabled) showSlide(idx + 1); });
+
+  tocLinks.forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      var targetId = a.getAttribute('href').slice(1);
+      for (var i = 0; i < slides.length; i++) if (slides[i].id === targetId) { showSlide(i); return; }
+    });
+  });
+
+  window.addEventListener('hashchange', function () {
+    var i = indexFromHash();
+    if (i !== idx) { idx = i; updateChrome(); if (main) main.scrollTop = 0; setTimeout(checkUnlock, 60); }
+  });
+
+  if (main) main.addEventListener('scroll', checkUnlock, { passive: true });
+  window.addEventListener('resize', checkUnlock, { passive: true });
+
+  document.addEventListener('keydown', function (e) {
+    var tag = (e.target && e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+      if (nextBtn && !nextBtn.disabled) { e.preventDefault(); showSlide(idx + 1); }
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      if (idx > 0) { e.preventDefault(); showSlide(idx - 1); }
+    }
+  });
+
+  showSlide(indexFromHash());
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!-- Drop this inside <main> alongside other sections. Renumber `s2` and the
+     `<span class="num">2.</span>` heading to match the section's slot. Quiz
+     radio names must be unique per question: `q-sN-1`, `q-sN-2`, ... -->
+
+<section id="s2" class="chapter">
+  <h2><span class="num">2.</span> {{Section title}}</h2>
+
+  <p>
+    {{Opening paragraph &mdash; answer "why does this section exist?" in one
+    or two sentences. The reader should know what they'll learn before they
+    read the body.}}
+  </p>
+
+  <h3>{{Sub-concept A}}</h3>
+
+  <p>{{Body text. Plain English. ~60&ndash;80 words per paragraph.}}</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 720 240" role="img" aria-label="{{Diagram description}}">
+      <defs>
+        <marker id="arr-sN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#5aa9ff"/>
+        </marker>
+      </defs>
+      <!-- boxes -->
+      <rect x="20" y="80" width="160" height="80" rx="10" fill="#1b212b" stroke="#3a4250"/>
+      <text x="100" y="125" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="14" text-anchor="middle">{{Box A}}</text>
+      <!-- arrow -->
+      <line x1="180" y1="120" x2="280" y2="120" stroke="#5aa9ff" stroke-width="2" marker-end="url(#arr-sN)"/>
+      <rect x="280" y="80" width="160" height="80" rx="10" fill="#14281c" stroke="#3fb950"/>
+      <text x="360" y="125" fill="#e6e6e6" font-family="ui-sans-serif, system-ui" font-size="14" text-anchor="middle">{{Box B}}</text>
+    </svg>
+  </div>
+
+  <h3>{{Sub-concept B}}</h3>
+
+  <p>{{More body text.}}</p>
+
+  <!-- Running-example callout: how does this concept show up in our scenario? -->
+  <div class="callout callout-example">
+    <div class="callout-title">In {{running-example-name}}</div>
+    <p>
+      {{Concrete instantiation of the concept in the running example. Be
+      specific &mdash; "in our scenario, X handles Y because Z" beats "this
+      could be used to..."}}
+    </p>
+  </div>
+
+  <!-- Optional "in the wild" sidebar -->
+  <div class="callout callout-wild">
+    <div class="callout-title">In the wild</div>
+    <p>
+      {{One real-world reference: a published library, a well-known service,
+      a paper. Contrast or reinforce the concept. Keep it short &mdash; this
+      is a sidebar, not a section.}}
+    </p>
+  </div>
+
+  <!-- Quiz: two questions per section. Keep names unique: q-sN-1, q-sN-2. -->
+  <form class="quiz" aria-label="Section N quiz">
+    <div class="quiz-head">Check yourself</div>
+    <p class="quiz-title">Two questions on &sect;N.</p>
+
+    <fieldset class="quiz-q" data-correct="b"
+      data-explain="{{Explain why b is right and why the tempting wrong answers (probably a or c) miss the point. Teach in the explanation.}}">
+      <legend>{{Question 1?}}</legend>
+      <label class="quiz-opt"><input type="radio" name="q-sN-1" value="a"> {{Option A &mdash; plausible but wrong}}</label>
+      <label class="quiz-opt"><input type="radio" name="q-sN-1" value="b"> {{Option B &mdash; correct}}</label>
+      <label class="quiz-opt"><input type="radio" name="q-sN-1" value="c"> {{Option C &mdash; tempting misconception}}</label>
+      <label class="quiz-opt"><input type="radio" name="q-sN-1" value="d"> {{Option D &mdash; clearly wrong}}</label>
+      <div class="quiz-feedback" aria-live="polite"></div>
+    </fieldset>
+
+    <fieldset class="quiz-q" data-correct="c"
+      data-explain="{{Explanation for question 2.}}">
+      <legend>{{Question 2?}}</legend>
+      <label class="quiz-opt"><input type="radio" name="q-sN-2" value="a"> {{Option A}}</label>
+      <label class="quiz-opt"><input type="radio" name="q-sN-2" value="b"> {{Option B}}</label>
+      <label class="quiz-opt"><input type="radio" name="q-sN-2" value="c"> {{Option C}}</label>
+      <label class="quiz-opt"><input type="radio" name="q-sN-2" value="d"> {{Option D}}</label>
+      <div class="quiz-feedback" aria-live="polite"></div>
+    </fieldset>
+
+    <div class="quiz-actions">
+      <button type="button" class="btn primary" data-quiz-action="check">Check answers</button>
+      <button type="button" class="btn" data-quiz-action="reset">Reset</button>
+      <span class="quiz-summary" aria-live="polite"></span>
+    </div>
+  </form>
+</section>
